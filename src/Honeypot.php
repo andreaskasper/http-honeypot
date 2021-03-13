@@ -34,7 +34,11 @@ class Honeypot {
     if (substr($_SERVER["REQUEST_URI"],-14,14) == "eval-stdin.php") {
       die("root@localhost:~# ".PHP_EOL);
     }
-
+    
+    if (substr($_SERVER["REQUEST_URI"],-5,5) == "/RPC2") {
+      die("ready...".PHP_EOL);
+    }
+    
 
     @file_put_contents("/var/log/honeypot.urls.404.log", "http://".$_SERVER["HTTP_HOST"].$_SERVER["REQUEST_URI"].PHP_EOL, FILE_APPEND);
 
