@@ -23,6 +23,9 @@ $row .= '"'.json_encode($_COOKIE ?? null).'";';
 
 setcookie ("akhp", $_COOKIE["akhp"] ?? $set_cookie, time()+365*86400, "/", $_SERVER["HTTP_HOST"], false, false);
 sleep($wait_sec);
-  
+
+
+@file_put_contents("/var/log/honeypot.urls.404.log", "http://".$_SERVER["HTTP_HOST"].$_SERVER["REQUEST_URI"].PHP_EOL, FILE_APPEND);
+
 header($_SERVER["SERVER_PROTOCOL"]." 404 Not Found");
 exit;
