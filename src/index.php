@@ -2,13 +2,16 @@
 
 $wait_sec = rand(0,10);
 $set_cookie = md5(microtime(true));
+$remote_ip = $_SERVER["HTTP_X_FORWARDED_FOR"] ?? $_SERVER["REMOTE_ADDR"] ?? null;
 
 @file_put_contents("/var/log/honeypot.test.log", var_export($_SERVER, true), FILE_APPEND);
 
 $row  = date("Y-m-d H:i:s").';';
-$row .= $_SERVER["REMOTE_ADDR"].';';
+$row .= $remote_ip.';';
 $row .= $wait_sec.';';
-$row .= '"'.$_SERVER["REQUEST_URI"].'";';
+$row .= '"'.($_SERVER["HTTP_HOST"] ?? null).'";';
+$row .= '"'.($_SERVER["REQUEST_URI"] ?? null).'";';
+$row .= '"'.($_SERVER["HTTP_USER_AGENT"] ?? null).'";';
 
 $row .= '"'.json_encode($_SERVER ?? null).'";';
 $row .= '"'.json_encode($_ENV ?? null).'";';
