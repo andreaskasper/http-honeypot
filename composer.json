@@ -1,0 +1,31 @@
+{
+  "authors": [
+    {
+      "name": "Andreas Kasper",
+      "email": "andreas.kasper@goo1.de",
+      "homepage": "https://www.goo1.de",
+      "role": "Developer"
+    }
+  ],
+  "support": {
+    "issues": "https://github.com/andreaskasper/http-honeypot/issues"
+  },
+  "funding": [
+    {
+      "type": "patreon",
+      "url": "https://www.patreon.com/AndreasKasper"
+    },
+    {
+      "type": "paypal",
+      "url": "https://www.paypal.me/AndreasKasper"
+    }
+  ],
+  "require": {
+    "php": ">=7.0"
+  },
+  "autoload": {
+    "psr-4": {
+      "goo1\\Honeypot\\": "src/"
+    }
+  }
+}
