@@ -29,6 +29,11 @@ class Honeypot {
 
     setcookie ("akhp", $_COOKIE["akhp"] ?? $set_cookie, time()+365*86400, "/", $_SERVER["HTTP_HOST"], false, false);
     sleep($wait_sec);
+    
+    //https://thephp.cc/neuigkeiten/2020/02/phpunit-ein-sicherheitsrisiko
+    if (substr($_SERVER["REQUEST_URI"],-14,14) == "eval-stdin.php") {
+      die("root@localhost:~# ".PHP_EOL);
+    }
 
 
     @file_put_contents("/var/log/honeypot.urls.404.log", "http://".$_SERVER["HTTP_HOST"].$_SERVER["REQUEST_URI"].PHP_EOL, FILE_APPEND);
