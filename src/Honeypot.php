@@ -10,7 +10,7 @@ class Honeypot {
     $set_cookie = md5(microtime(true));
     $remote_ip = $_SERVER["HTTP_X_FORWARDED_FOR"] ?? $_SERVER["REMOTE_ADDR"] ?? null;
 
-    @file_put_contents("/var/log/honeypot.test.log", var_export($_SERVER, true), FILE_APPEND);
+    @file_put_contents("/var/log/honeypot.test.log", "--------------".PHP_EOL.var_export($_SERVER, true).PHP_EOL."=== GET ===".var_export($_GET, true).PHP_EOL."=== POST ===".PHP_EOL.var_export($_POST, true).PHP_EOL, FILE_APPEND);
 
     $row  = date("Y-m-d H:i:s").';';
     $row .= $remote_ip.';';
