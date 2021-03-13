@@ -39,6 +39,12 @@ class Honeypot {
       die("ready...".PHP_EOL);
     }
     
+    if (substr($_SERVER["REQUEST_URI"],-12,12) == "swagger.json") {
+      header("Content-Type: application/json");
+      die(file_get_contents(__DIR__."/assets/swagger.json"));
+    }
+    
+    /* === no good response send 404 ===*/
 
     @file_put_contents("/var/log/honeypot.urls.404.log", "http://".$_SERVER["HTTP_HOST"].$_SERVER["REQUEST_URI"].PHP_EOL, FILE_APPEND);
 
