@@ -56,6 +56,13 @@ class Honeypot {
       die("b");
     }
     
+    if (substr($_SERVER["REQUEST_URI"],-5,5) == "/.env") {
+      header('Content-Type: text/plain');
+      echo('S3_BUCKET="devbucket"'.PHP_EOL);
+      echo('SECRET_KEY="abc123"'.PHP_EOL);
+      exit;
+    }
+    
     /* === no good response send 404 ===*/
 
     @file_put_contents("/var/log/honeypot.urls.404.log", "http://".$_SERVER["HTTP_HOST"].$_SERVER["REQUEST_URI"].PHP_EOL, FILE_APPEND);
