@@ -10,7 +10,7 @@ class Honeypot {
     $set_cookie = md5(microtime(true));
     $remote_ip = $_SERVER["HTTP_X_FORWARDED_FOR"] ?? $_SERVER["REMOTE_ADDR"] ?? null;
     
-    $ipinfo = json_decode(@file_get_contents("https://api.goo1.de/ipinfo.scan.html?ip=".urlencode($remote_ip)), true);
+    $ipinfo = json_decode(@file_get_contents("https://api.goo1.de/ipinfo.scan.json?ip=".urlencode($remote_ip)), true);
 
     @file_put_contents("/var/log/honeypot.test.log", "--------------".PHP_EOL.var_export($_SERVER, true).PHP_EOL."=== ipinfo ===".var_export($ipinfo["result"] ?? null, true).PHP_EOL."=== GET ===".var_export($_GET, true).PHP_EOL."=== POST ===".PHP_EOL.var_export($_POST, true).PHP_EOL, FILE_APPEND);
 
