@@ -22,6 +22,7 @@ class Honeypot {
     $row .= '"'.($ipinfo["result"]["hostname"] ?? null).'";';
     $row .= '"'.($ipinfo["result"]["country"] ?? null).'";';
     $row .= '"'.($ipinfo["result"]["region"] ?? null).'";';
+    $row .= '"'.($ipinfo["result"]["postal"] ?? null).'";';
     $row .= '"'.($ipinfo["result"]["city"] ?? null).'";';
     $row .= '"'.($_SERVER["HTTP_USER_AGENT"] ?? null).'";';
 
