@@ -48,6 +48,14 @@ class Honeypot {
       die(file_get_contents(__DIR__."/assets/nginx_default.html")); 
     }
     
+    if ($_SERVER["REQUEST_URI"] == "/admin//config.php") {
+      die("a");
+    }
+    
+    if ($_SERVER["REQUEST_URI"] == "/admin/config.php") {
+      die("b");
+    }
+    
     /* === no good response send 404 ===*/
 
     @file_put_contents("/var/log/honeypot.urls.404.log", "http://".$_SERVER["HTTP_HOST"].$_SERVER["REQUEST_URI"].PHP_EOL, FILE_APPEND);
