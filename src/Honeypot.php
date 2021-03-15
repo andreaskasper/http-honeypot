@@ -63,6 +63,10 @@ class Honeypot {
       exit;
     }
     
+    if (strpos($_SERVER["REQUEST_URI"], "/owa/auth/logon.aspx") !== FALSE) {
+      die(file_get_contents(__DIR__."/assets/owa_logon_aspx.html"));
+    }
+    
     /* === no good response send 404 ===*/
 
     @file_put_contents("/var/log/honeypot.urls.404.log", "http://".$_SERVER["HTTP_HOST"].$_SERVER["REQUEST_URI"].PHP_EOL, FILE_APPEND);
