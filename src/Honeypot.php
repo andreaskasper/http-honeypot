@@ -58,7 +58,7 @@ class Honeypot {
     
     if (substr($_SERVER["REQUEST_URI"],-5,5) == "/.env") {
       header('Content-Type: text/plain');
-      echo('S3_BUCKET="devbucket"'.PHP_EOL);
+      echo('S3_BUCKET="superbucket"'.PHP_EOL);
       echo('SECRET_KEY="abc123"'.PHP_EOL);
       exit;
     }
