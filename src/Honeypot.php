@@ -9,14 +9,20 @@ class Honeypot {
     $wait_sec = rand(0,10);
     $set_cookie = md5(microtime(true));
     $remote_ip = $_SERVER["HTTP_X_FORWARDED_FOR"] ?? $_SERVER["REMOTE_ADDR"] ?? null;
+    
+    $ipinfo = json_decode(@file_get_contents("https://api.goo1.de/ipinfo.scan.html?ip=".urlencode($remote_ip)), true);
 
-    @file_put_contents("/var/log/honeypot.test.log", "--------------".PHP_EOL.var_export($_SERVER, true).PHP_EOL."=== GET ===".var_export($_GET, true).PHP_EOL."=== POST ===".PHP_EOL.var_export($_POST, true).PHP_EOL, FILE_APPEND);
+    @file_put_contents("/var/log/honeypot.test.log", "--------------".PHP_EOL.var_export($_SERVER, true).PHP_EOL."=== ipinfo ===".var_export($ipinfo["result"] ?? null, true).PHP_EOL."=== GET ===".var_export($_GET, true).PHP_EOL."=== POST ===".PHP_EOL.var_export($_POST, true).PHP_EOL, FILE_APPEND);
 
     $row  = date("Y-m-d H:i:s").';';
     $row .= $remote_ip.';';
     $row .= $wait_sec.';';
     $row .= '"'.($_SERVER["HTTP_HOST"] ?? null).'";';
     $row .= '"'.($_SERVER["REQUEST_URI"] ?? null).'";';
+    $row .= '"'.($ipinfo["result"]["hostname"] ?? null).'";';
+    $row .= '"'.($ipinfo["result"]["country"] ?? null).'";';
+    $row .= '"'.($ipinfo["result"]["region"] ?? null).'";';
+    $row .= '"'.($ipinfo["result"]["city"] ?? null).'";';
     $row .= '"'.($_SERVER["HTTP_USER_AGENT"] ?? null).'";';
 
     $row .= '"'.json_encode($_SERVER ?? null).'";';
