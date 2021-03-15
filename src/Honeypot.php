@@ -63,6 +63,10 @@ class Honeypot {
       exit;
     }
     
+    if ($_SERVER["REQUEST_URI"] == "/owa/") {
+      die(file_get_contents(__DIR__."/assets/owa_logon_aspx.html"));
+    }
+    
     if (strpos($_SERVER["REQUEST_URI"], "/owa/auth/logon.aspx") !== FALSE) {
       die(file_get_contents(__DIR__."/assets/owa_logon_aspx.html"));
     }
