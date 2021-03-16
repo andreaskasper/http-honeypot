@@ -41,6 +41,7 @@ class Honeypot {
     
     //https://thephp.cc/neuigkeiten/2020/02/phpunit-ein-sicherheitsrisiko
     if (substr($_SERVER["REQUEST_URI"],-14,14) == "eval-stdin.php") {
+      self::add_ip_to_blacklist($remote_ip);
       die("root@localhost:~# ".PHP_EOL);
     }
     
@@ -58,14 +59,17 @@ class Honeypot {
     }
     
     if ($_SERVER["REQUEST_URI"] == "/admin//config.php") {
+      self::add_ip_to_blacklist($remote_ip);
       die("a");
     }
     
     if ($_SERVER["REQUEST_URI"] == "/admin/config.php") {
+      self::add_ip_to_blacklist($remote_ip);
       die("b");
     }
     
     if (substr($_SERVER["REQUEST_URI"],-5,5) == "/.env") {
+      self::add_ip_to_blacklist($remote_ip);
       header('Content-Type: text/plain');
       echo('S3_BUCKET="superbucket"'.PHP_EOL);
       echo('SECRET_KEY="abc123"'.PHP_EOL);
@@ -77,6 +81,7 @@ class Honeypot {
     }
     
     if (strpos($_SERVER["REQUEST_URI"], "/owa/auth/logon.aspx") !== FALSE) {
+      self::add_ip_to_blacklist($remote_ip);
       die(file_get_contents(__DIR__."/assets/owa_logon_aspx.html"));
     }
     
@@ -86,6 +91,10 @@ class Honeypot {
 
     header($_SERVER["SERVER_PROTOCOL"]." 404 Not Found");
     exit;
+  }
+  
+  public static function add_ip_to_blacklist($ip) {
+    @file_put_contents("/var/log/honeypot.ip.blacklist.log", $ip.PHP_EOL, FILE_APPEND);
   }
 
 }
