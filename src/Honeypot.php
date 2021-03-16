@@ -39,6 +39,19 @@ class Honeypot {
     setcookie ("akhp", $_COOKIE["akhp"] ?? $set_cookie, time()+365*86400, "/", $_SERVER["HTTP_HOST"], false, false);
     sleep($wait_sec);
     
+    switch ($_SERVER["REQUEST_URI"]) {
+      case "/":
+        die(file_get_contents(__DIR__."/assets/nginx_default.html"));
+      case "/admin//config.php":
+        self::add_ip_to_blacklist($remote_ip);
+        die("a");
+      case "/admin/config.php":
+        self::add_ip_to_blacklist($remote_ip);
+        die("b");
+      case "/owa/":
+        die(file_get_contents(__DIR__."/assets/owa_logon_aspx.html"));
+    }
+    
     //https://thephp.cc/neuigkeiten/2020/02/phpunit-ein-sicherheitsrisiko
     if (substr($_SERVER["REQUEST_URI"],-14,14) == "eval-stdin.php") {
       self::add_ip_to_blacklist($remote_ip);
@@ -54,20 +67,6 @@ class Honeypot {
       die(file_get_contents(__DIR__."/assets/swagger.json"));
     }
     
-    if ($_SERVER["REQUEST_URI"] == "/") {
-      die(file_get_contents(__DIR__."/assets/nginx_default.html")); 
-    }
-    
-    if ($_SERVER["REQUEST_URI"] == "/admin//config.php") {
-      self::add_ip_to_blacklist($remote_ip);
-      die("a");
-    }
-    
-    if ($_SERVER["REQUEST_URI"] == "/admin/config.php") {
-      self::add_ip_to_blacklist($remote_ip);
-      die("b");
-    }
-    
     if (substr($_SERVER["REQUEST_URI"],-5,5) == "/.env") {
       self::add_ip_to_blacklist($remote_ip);
       header('Content-Type: text/plain');
@@ -76,13 +75,14 @@ class Honeypot {
       exit;
     }
     
-    if ($_SERVER["REQUEST_URI"] == "/owa/") {
-      die(file_get_contents(__DIR__."/assets/owa_logon_aspx.html"));
-    }
-    
     if (strpos($_SERVER["REQUEST_URI"], "/owa/auth/logon.aspx") !== FALSE) {
       self::add_ip_to_blacklist($remote_ip);
       die(file_get_contents(__DIR__."/assets/owa_logon_aspx.html"));
+    }
+    
+    if (preg_match("@^/aspnet_client/[A-Za-z0-9]+.aspx@", $_SERVER["REQUEST_URI"])) {
+      self::add_ip_to_blacklist($remote_ip);
+      die('<xml></xml>');
     }
     
     /* === no good response send 404 ===*/
