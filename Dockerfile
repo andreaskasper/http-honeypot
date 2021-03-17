@@ -1,5 +1,10 @@
-FROM php:8-apache
+FROM golang:1.16
 
-ADD src/ /var/www/html/
+WORKDIR /go/src/app
 
-RUN a2enmod rewrite && a2enmod actions
+ADD src/ /go/src/app/
+
+RUN go get -d -v honeypot.go
+RUN go install -v honeypot.go
+
+CMD ["honeypot"]
