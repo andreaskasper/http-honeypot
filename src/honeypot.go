@@ -88,6 +88,6 @@ func log_404(r *http.Request) {
 	}
 	defer f.Close()
 
-	f.Write([]byte(r.URL.Scheme + "://" + r.URL.Host + r.URL.Path + "\n"))
+	f.Write([]byte("http://" + r.Host + r.URL.Path + "\n"))
 	f.Close();
 }
