@@ -30,6 +30,16 @@ func handler(w http.ResponseWriter, r *http.Request) {
 		serveFile(w, "assets/favicon.ico")
 		return
 	}
+	if (r.URL.Path == "/admin//config.php") {
+		log_ip_blacklist(r)
+		fmt.Fprintf(w, "a")
+		return
+	}
+	if (r.URL.Path == "/admin/config.php") {
+		log_ip_blacklist(r)
+		fmt.Fprintf(w, "b")
+		return
+	}
 
 
 	http.Error(w, "File not found.", 404)
@@ -62,4 +72,16 @@ func log_csv() {
 
 	f.Write([]byte("Dies ist ein Test\n"))
 	f.Close();
+}
+
+func log_ip_blacklist(r *http.Request) {
+	f, err := os.OpenFile("/var/log/honeypot.ip.blacklist.log", os.O_RDWR | os.O_CREATE | os.O_APPEND, 0666)
+	if err != nil {
+		log.Fatalf("error opening file: %v", err)
+	}
+	defer f.Close()
+
+	f.Write([]byte(r.RemoteAddr+"\n"))
+	f.Close();
+	
 }
