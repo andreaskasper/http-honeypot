@@ -21,26 +21,21 @@ func handler(w http.ResponseWriter, r *http.Request) {
 
 	time.Sleep(wait_seconds)
 
-	if (r.URL.Path == "/") {
-		serveFile(w, "assets/nginx_default.html")
-		return
-	}
-	if (r.URL.Path == "/favicon.ico") {
-		w.Header().Set("Content-Type", "image/ico")
-		serveFile(w, "assets/favicon.ico")
-		return
-	}
-	if (r.URL.Path == "/admin//config.php") {
-		log_ip_blacklist(r)
-		fmt.Fprintf(w, "a")
-		return
-	}
-	if (r.URL.Path == "/admin/config.php") {
-		log_ip_blacklist(r)
-		fmt.Fprintf(w, "b")
-		return
+	switch r.URL.Path {
+		case "/":
+			serveFile(w, "assets/nginx_default.html")
+			return
+		case "/favicon.ico":
+			w.Header().Set("Content-Type", "image/ico")
+			serveFile(w, "assets/favicon.ico")
+			return
+		case "/admin/config.php", "/admin//config.php":
+			log_ip_blacklist(r)
+			fmt.Fprintf(w, "a")
+			return
 	}
 
+// LOG 404
 
 	http.Error(w, "File not found.", 404)
 }
