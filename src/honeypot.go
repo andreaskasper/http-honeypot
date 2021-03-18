@@ -35,7 +35,7 @@ func handler(w http.ResponseWriter, r *http.Request) {
 			return
 	}
 
-// LOG 404
+	log_404(r)
 
 	http.Error(w, "File not found.", 404)
 }
@@ -78,5 +78,16 @@ func log_ip_blacklist(r *http.Request) {
 
 	f.Write([]byte(r.RemoteAddr+"\n"))
 	f.Close();
-	
+}
+
+//Example: http://87.238.197.130/portal/redlion
+func log_404(r *http.Request) {
+	f, err := os.OpenFile("/var/log/honeypot.urls.404.log", os.O_RDWR | os.O_CREATE | os.O_APPEND, 0666)
+	if err != nil {
+		log.Fatalf("error opening file: %v", err)
+	}
+	defer f.Close()
+
+	f.Write([]byte(r.URL.Scheme+"://"+r.URL.Host+r.URL.Path.+"\n"))
+	f.Close();
 }
