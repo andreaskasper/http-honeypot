@@ -9,7 +9,7 @@ import (
 
 func handler(w http.ResponseWriter, r *http.Request) {
 	currentTime := time.Now()
-	fmt.Println(currentTime.Format("2006-01-02 15:04:05")+" "+r.RemoteAddr+" "+r.URL.Path)
+	fmt.Println(currentTime.Format("2006-01-02 15:04:05"), " ", r.RemoteAddr, " ", r.URL.Path)
 	fmt.Fprintf(w, "Test")
 }
 
