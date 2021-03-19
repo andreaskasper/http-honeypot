@@ -10,11 +10,34 @@ import (
 	"time"
 )
 
+var counter_requests int = 0
+var counter_requests_404 int = 0
+var counter_requests_attacks int = 0
+
 func handler(w http.ResponseWriter, r *http.Request) {
+
+	/* Prometheus Metrics */
+	if (r.URL.Path == "/metrics") {
+		w.Header().Set("Content-Type", "text/plain; version=0.0.4")
+
+		fmt.Fprintf(w, "# HELP http_requests_all Number of webrequests\n")
+		fmt.Fprintf(w, "# TYPE http_requests_all counter\n")
+
+		fmt.Fprintf(w, "http_requests_all{} %d\n", counter_requests)
+
+		fmt.Fprintf(w, "# HELP http_requests Number of webrequests\n")
+		fmt.Fprintf(w, "# TYPE http_requests counter\n")
+
+		fmt.Fprintf(w, "http_requests{code=\"404\"} %d\n", counter_requests_404)
+		fmt.Fprintf(w, "http_requests{code=\"attack\"} %d\n", counter_requests_attacks)
+		return
+	}
+
 	currentTime := time.Now()
 	wait_seconds := time.Duration(rand.Int31n(10)) * time.Second
 
 	fmt.Println(currentTime.Format("2006-01-02 15:04:05"), " ", r.RemoteAddr, " ", r.URL.Path)
+	counter_requests++;
 
 	log_csv()
 
@@ -30,12 +53,14 @@ func handler(w http.ResponseWriter, r *http.Request) {
 			serveFile(w, "assets/favicon.ico")
 			return
 		case "/admin/config.php", "/admin//config.php":
+			counter_requests_attacks++
 			log_ip_blacklist(r)
 			fmt.Fprintf(w, "a")
 			return
 	}
 
 	log_404(r)
+	counter_requests_404++
 
 	http.Error(w, "File not found.", 404)
 }
@@ -88,6 +113,6 @@ func log_404(r *http.Request) {
 	}
 	defer f.Close()
 
-	f.Write([]byte("http://" + r.Host + r.URL.Path + "\n"))
+	f.Write([]byte(r.URL.Scheme+"://"+r.URL.Host+r.URL.Path+"\n"))
 	f.Close();
 }
