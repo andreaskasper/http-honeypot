@@ -13,6 +13,7 @@ import (
 var counter_requests int = 0
 var counter_requests_404 int = 0
 var counter_requests_attacks int = 0
+var stats_duration_wait float64 = 0
 
 func handler(w http.ResponseWriter, r *http.Request) {
 
@@ -30,14 +31,20 @@ func handler(w http.ResponseWriter, r *http.Request) {
 
 		fmt.Fprintf(w, "http_requests{code=\"404\"} %d\n", counter_requests_404)
 		fmt.Fprintf(w, "http_requests{code=\"attack\"} %d\n", counter_requests_attacks)
+
+		fmt.Fprintf(w, "# HELP http_duration Duration of web requests\n")
+		fmt.Fprintf(w, "# TYPE http_duration summary\n")
+
+		fmt.Fprintf(w, "http_duration{} %f\n", stats_duration_wait)
 		return
 	}
 
 	currentTime := time.Now()
-	wait_seconds := time.Duration(rand.Int31n(10)) * time.Second
+	wait_seconds := time.Duration(rand.Float64()*20) * time.Second
 
 	fmt.Println(currentTime.Format("2006-01-02 15:04:05"), " ", r.RemoteAddr, " ", r.URL.Path)
 	counter_requests++;
+	stats_duration_wait += float64(wait_seconds.Milliseconds())/1000
 
 	log_csv()
 
