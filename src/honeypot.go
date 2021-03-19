@@ -46,7 +46,7 @@ func handler(w http.ResponseWriter, r *http.Request) {
 	counter_requests++;
 	stats_duration_wait += float64(wait_seconds.Milliseconds())/1000
 
-	log_csv()
+	log_csv(r, wait_seconds)
 
 
 	time.Sleep(wait_seconds)
@@ -90,14 +90,45 @@ func serveFile(w http.ResponseWriter, Filename string) {
 	io.Copy(w, Openfile)
 }
 
-func log_csv() {
+func log_csv(r *http.Request, wait_sec time.Duration) {
 	f, err := os.OpenFile("/var/log/honeypot.log1.csv", os.O_RDWR | os.O_CREATE | os.O_APPEND, 0666)
 	if err != nil {
 		log.Fatalf("error opening file: %v", err)
 	}
 	defer f.Close()
 
-	f.Write([]byte("Dies ist ein Test\n"))
+	f.Write([]byte(fmt.Sprintf("%s;", time.Now().Format("2006-01-02 15:04:05") )))
+	f.Write([]byte(fmt.Sprintf("%s;", r.RemoteAddr )))
+	f.Write([]byte(fmt.Sprintf("%f;", float64(wait_sec.Milliseconds())/1000 )))
+	f.Write([]byte(fmt.Sprintf("%s;", r.Method )))
+	f.Write([]byte(fmt.Sprintf("%s;", r.Host )))
+	f.Write([]byte(fmt.Sprintf("%s;", r.URL.Path )))
+	f.Write([]byte("\n"))
+
+/*
+
+    $row  = date("Y-m-d H:i:s").';';
+    $row .= $remote_ip.';';
+    $row .= $wait_sec.';';
+    
+    $row .= '"'.($_SERVER["REQUEST_METHOD"] ?? null).'";';
+    $row .= '"'.($_SERVER["HTTP_HOST"] ?? null).'";';
+    $row .= '"'.($_SERVER["REQUEST_URI"] ?? null).'";';
+    $row .= '"'.($ipinfo["result"]["hostname"] ?? null).'";';
+    $row .= '"'.($ipinfo["result"]["country"] ?? null).'";';
+    $row .= '"'.($ipinfo["result"]["region"] ?? null).'";';
+    $row .= '"'.($ipinfo["result"]["postal"] ?? null).'";';
+    $row .= '"'.($ipinfo["result"]["city"] ?? null).'";';
+    $row .= '"'.($_SERVER["HTTP_USER_AGENT"] ?? null).'";';
+
+    $row .= '"'.json_encode($_SERVER ?? null).'";';
+    $row .= '"'.json_encode($_ENV ?? null).'";';
+    $row .= '"'.json_encode($_GET ?? null).'";';
+    $row .= '"'.json_encode($_POST ?? null).'";';
+    $row .= '"'.json_encode($_COOKIE ?? null).'";';
+
+ */
+
 	f.Close();
 }
 
