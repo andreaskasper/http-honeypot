@@ -1,7 +1,9 @@
 package main
 
 import (
+	"crypto/md5"
 	"crypto/subtle"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -18,8 +20,6 @@ var counter_requests int = 0
 var counter_requests_404 int = 0
 var counter_requests_attacks int = 0
 var stats_duration_wait float64 = 0
-
-var ipinfo_token string = ""
 
 type ipinfojson struct {
 	ip string `json:"ip"`
@@ -74,31 +74,23 @@ func handler(w http.ResponseWriter, r *http.Request) {
 
 	ip, _, err := net.SplitHostPort(r.RemoteAddr)
 	if err != nil {
-        //return nil, fmt.Errorf("userip: %q is not IP:port", req.RemoteAddr)
 		fmt.Fprintf(w, "userip: %q is not IP:port", r.RemoteAddr)
 	}
-	
-
-
 	ipinfodata := ipinfo(ip)
 
-	//text := `{"result":{"ip":"85.13.157.111","hostname":"dd41636.kasserver.com","city":"Neusalza-Spremberg","region":"Saxony","country":"DE","loc":"51.0395000,14.5356000","geo":{"lat":"51.0395000","lon":"14.5356000"},"org":"AS34788 Neue Medien Muennich GmbH","postal":"02742","timezone":"Europe\/Berlin","last_scan":"2020-07-22 11:55:06"},"err":{"id":0,"msg":null},"request":{"ip":"85.13.157.111","_namespace":"ipinfo","_method":"scan","_format":"json"},"runtime":{"sec":0.0023660659790039,"timestamp":{"unix":1616237987,"string":"2021-03-20T11:59:47+01:00"}}}`
-	//textBytes := []byte(text)
+	hp_cookie := getHoneypotCookie(r)
+	if (hp_cookie == "") { 
+		a := time.Now().String()
+		hp_cookie = GetMD5Hash(a)
+	}
 
+	expire := time.Now().AddDate(24*365, 0, 0)
+    cookie := http.Cookie{"akhp", hp_cookie, "/", r.Host, expire, expire.Format(time.UnixDate), 86400*365, false, true, http.SameSiteDefaultMode, "akhp="+hp_cookie, []string{"akhp="+hp_cookie}}
+    http.SetCookie(w, &cookie)
 
+	//fmt.Println("Cookie: "+hp_cookie)
 
-	/*var info *ipinfo.Core
-
-	if (ipinfo_token != "") {
-		client := ipinfo.NewClient(nil, nil, ipinfo_token)
-		info, err := client.GetIPInfo(net.ParseIP(r.RemoteAddr))
-		if err != nil {
-			log.Fatal(err)
-		}
-		fmt.Println(info)
-	}*/
-
-	log_csv(r, wait_seconds, ipinfodata)
+	log_csv(r, wait_seconds, ipinfodata, hp_cookie)
 
 
 	time.Sleep(wait_seconds)
@@ -125,7 +117,7 @@ func handler(w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
-		ipinfo_token = os.Getenv("IPINFO_TOKEN")
+		//ipinfo_token = os.Getenv("IPINFO_TOKEN")
 
         http.HandleFunc("/", handler)
         fmt.Println("Server is listening on port 80")
@@ -144,7 +136,7 @@ func serveFile(w http.ResponseWriter, Filename string) {
 	io.Copy(w, Openfile)
 }
 
-func log_csv(r *http.Request, wait_sec time.Duration,ipdata map[string]interface{}) {
+func log_csv(r *http.Request, wait_sec time.Duration,ipdata map[string]interface{}, hp_cookie string) {
 	f, err := os.OpenFile("/var/log/honeypot.log1.csv", os.O_RDWR | os.O_CREATE | os.O_APPEND, 0666)
 	if err != nil {
 		log.Fatalf("error opening file: %v", err)
@@ -164,7 +156,8 @@ func log_csv(r *http.Request, wait_sec time.Duration,ipdata map[string]interface
 	f.Write([]byte(fmt.Sprintf("%s;", ipdata["postal"] )))
 	f.Write([]byte(fmt.Sprintf("%s;", ipdata["city"] )))
 
-	f.Write([]byte(fmt.Sprintf("%s;", r.Header.Get("User-Agent") )))
+	f.Write([]byte(fmt.Sprintf("\"%s\";", r.Header.Get("User-Agent") )))
+	f.Write([]byte(fmt.Sprintf("%s;", hp_cookie )))
 
 	f.Write([]byte("\n"))
 
@@ -275,4 +268,19 @@ func ipinfo(ip string) map[string]interface{} {
 	}
 
 	return results["result"]
+}
+
+func getHoneypotCookie(r *http.Request) string {
+	for _, cookie := range r.Cookies() {
+        if cookie.Name == "akhp" {
+			return cookie.Value
+        }
+	}
+	return ""
+}
+
+func GetMD5Hash(text string) string {
+    hasher := md5.New()
+    hasher.Write([]byte(text))
+    return hex.EncodeToString(hasher.Sum(nil))
 }
