@@ -2,10 +2,13 @@ package main
 
 import (
 	"crypto/subtle"
+	"encoding/json"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"log"
 	"math/rand"
+	"net"
 	"net/http"
 	"os"
 	"time"
@@ -18,6 +21,22 @@ var stats_duration_wait float64 = 0
 
 var ipinfo_token string = ""
 
+type ipinfojson struct {
+	ip string `json:"ip"`
+	hostname string `json:"hostname"`
+	city string `json:"city"`
+	region string `json:"region"`
+	county string `json:"country"`
+	loc string  `json:"loc"`
+	geo struct {
+		lat float64 `json:"lat"`
+		lon float64 `json:"lon"`
+	}
+	org string  `json:"org"`
+	postal string  `json:"postal"`
+	timezone string  `json:"timezone"`
+	lastscan string  `json:"last_scan"`
+}
 
 func handler(w http.ResponseWriter, r *http.Request) {
 
@@ -53,6 +72,21 @@ func handler(w http.ResponseWriter, r *http.Request) {
 	counter_requests++;
 	stats_duration_wait += float64(wait_seconds.Milliseconds())/1000
 
+	ip, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err != nil {
+        //return nil, fmt.Errorf("userip: %q is not IP:port", req.RemoteAddr)
+		fmt.Fprintf(w, "userip: %q is not IP:port", r.RemoteAddr)
+	}
+	
+
+
+	ipinfodata := ipinfo(ip)
+
+	//text := `{"result":{"ip":"85.13.157.111","hostname":"dd41636.kasserver.com","city":"Neusalza-Spremberg","region":"Saxony","country":"DE","loc":"51.0395000,14.5356000","geo":{"lat":"51.0395000","lon":"14.5356000"},"org":"AS34788 Neue Medien Muennich GmbH","postal":"02742","timezone":"Europe\/Berlin","last_scan":"2020-07-22 11:55:06"},"err":{"id":0,"msg":null},"request":{"ip":"85.13.157.111","_namespace":"ipinfo","_method":"scan","_format":"json"},"runtime":{"sec":0.0023660659790039,"timestamp":{"unix":1616237987,"string":"2021-03-20T11:59:47+01:00"}}}`
+	//textBytes := []byte(text)
+
+
+
 	/*var info *ipinfo.Core
 
 	if (ipinfo_token != "") {
@@ -64,7 +98,7 @@ func handler(w http.ResponseWriter, r *http.Request) {
 		fmt.Println(info)
 	}*/
 
-	log_csv(r, wait_seconds)
+	log_csv(r, wait_seconds, ipinfodata)
 
 
 	time.Sleep(wait_seconds)
@@ -110,7 +144,7 @@ func serveFile(w http.ResponseWriter, Filename string) {
 	io.Copy(w, Openfile)
 }
 
-func log_csv(r *http.Request, wait_sec time.Duration) {
+func log_csv(r *http.Request, wait_sec time.Duration,ipdata map[string]interface{}) {
 	f, err := os.OpenFile("/var/log/honeypot.log1.csv", os.O_RDWR | os.O_CREATE | os.O_APPEND, 0666)
 	if err != nil {
 		log.Fatalf("error opening file: %v", err)
@@ -123,6 +157,14 @@ func log_csv(r *http.Request, wait_sec time.Duration) {
 	f.Write([]byte(fmt.Sprintf("%s;", r.Method )))
 	f.Write([]byte(fmt.Sprintf("%s;", r.Host )))
 	f.Write([]byte(fmt.Sprintf("%s;", r.URL.Path )))
+
+	f.Write([]byte(fmt.Sprintf("%s;", ipdata["hostname"] )))
+	f.Write([]byte(fmt.Sprintf("%s;", ipdata["country"] )))
+	f.Write([]byte(fmt.Sprintf("%s;", ipdata["region"] )))
+	f.Write([]byte(fmt.Sprintf("%s;", ipdata["postal"] )))
+	f.Write([]byte(fmt.Sprintf("%s;", ipdata["city"] )))
+
+	f.Write([]byte(fmt.Sprintf("%s;", r.Header.Get("User-Agent") )))
 
 	f.Write([]byte("\n"))
 
@@ -197,4 +239,40 @@ func getenv(key, fallback string) string {
     	return fallback
     }
     return value
+}
+
+func ipinfo(ip string) map[string]interface{} {
+	goo1APIClient := http.Client{
+		Timeout: time.Second * 2, // Timeout after 2 seconds
+	}
+
+	req, err := http.NewRequest(http.MethodGet, "https://api.goo1.de/ipinfo.scan.json?ip="+ip, nil)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	res, getErr := goo1APIClient.Do(req)
+	if getErr != nil {
+		log.Fatal(getErr)
+	}
+
+	if res.Body != nil {
+		defer res.Body.Close()
+	}
+
+	body, readErr := ioutil.ReadAll(res.Body)
+	if readErr != nil {
+		log.Fatal(readErr)
+	}
+
+	//fmt.Println(string(body))
+
+	var results  map[string]map[string]interface{}
+	err2 := json.Unmarshal(body, &results)
+	if err2 != nil {
+		log.Fatal(err2)
+		fmt.Println(err2)
+	}
+
+	return results["result"]
 }
