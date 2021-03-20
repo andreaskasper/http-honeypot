@@ -1,6 +1,7 @@
 package main
 
 import (
+	"crypto/subtle"
 	"fmt"
 	"io"
 	"log"
@@ -15,10 +16,16 @@ var counter_requests_404 int = 0
 var counter_requests_attacks int = 0
 var stats_duration_wait float64 = 0
 
+var ipinfo_token string = ""
+
+
 func handler(w http.ResponseWriter, r *http.Request) {
 
 	/* Prometheus Metrics */
 	if (r.URL.Path == "/metrics") {
+		if (!BasicAuth(w,r)) { 
+			return
+		}
 		w.Header().Set("Content-Type", "text/plain; version=0.0.4")
 
 		fmt.Fprintf(w, "# HELP http_requests_all Number of webrequests\n")
@@ -45,6 +52,17 @@ func handler(w http.ResponseWriter, r *http.Request) {
 	fmt.Println(currentTime.Format("2006-01-02 15:04:05"), " ", r.RemoteAddr, " ", r.URL.Path)
 	counter_requests++;
 	stats_duration_wait += float64(wait_seconds.Milliseconds())/1000
+
+	/*var info *ipinfo.Core
+
+	if (ipinfo_token != "") {
+		client := ipinfo.NewClient(nil, nil, ipinfo_token)
+		info, err := client.GetIPInfo(net.ParseIP(r.RemoteAddr))
+		if err != nil {
+			log.Fatal(err)
+		}
+		fmt.Println(info)
+	}*/
 
 	log_csv(r, wait_seconds)
 
@@ -73,6 +91,8 @@ func handler(w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
+		ipinfo_token = os.Getenv("IPINFO_TOKEN")
+
         http.HandleFunc("/", handler)
         fmt.Println("Server is listening on port 80")
         log.Fatal(http.ListenAndServe(":80", nil))
@@ -103,6 +123,7 @@ func log_csv(r *http.Request, wait_sec time.Duration) {
 	f.Write([]byte(fmt.Sprintf("%s;", r.Method )))
 	f.Write([]byte(fmt.Sprintf("%s;", r.Host )))
 	f.Write([]byte(fmt.Sprintf("%s;", r.URL.Path )))
+
 	f.Write([]byte("\n"))
 
 /*
@@ -153,4 +174,27 @@ func log_404(r *http.Request) {
 
 	f.Write([]byte(r.URL.Scheme+"://"+r.URL.Host+r.URL.Path+"\n"))
 	f.Close();
+}
+
+func BasicAuth(w http.ResponseWriter, r *http.Request) bool {
+	admin := getenv("METRICS_USER", "admin")
+	password := getenv("METRICS_PASSWORD", "password")
+	realm := getenv("METRICS_REALM", "Prometheus Server")
+
+    user, pass, ok := r.BasicAuth()
+    if (!ok || subtle.ConstantTimeCompare([]byte(user), []byte(admin)) != 1 || subtle.ConstantTimeCompare ([]byte(pass), []byte(password)) != 1) {
+      w.Header().Set("WWW-Authenticate", `Basic realm="`+realm+`"`)
+      w.WriteHeader(401)
+      w.Write([]byte("Unauthorized.\n"))
+      return false
+    }
+    return true
+  }
+
+func getenv(key, fallback string) string {
+	value := os.Getenv(key)
+    if len(value) == 0 {
+    	return fallback
+    }
+    return value
 }
