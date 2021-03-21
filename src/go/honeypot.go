@@ -14,12 +14,22 @@ import (
 	"net/http"
 	"os"
 	"time"
+
+	"github.com/gregdel/pushover"
 )
 
 var counter_requests int = 0
 var counter_requests_404 int = 0
 var counter_requests_attacks int = 0
 var stats_duration_wait float64 = 0
+
+type HonepotRequest struct {
+	http http.ResponseWriter
+	timestamp time.Time
+	wait float64
+	ipinfo map[string]interface{}
+	cookie string
+}
 
 type ipinfojson struct {
 	ip string `json:"ip"`
@@ -36,6 +46,12 @@ type ipinfojson struct {
 	postal string  `json:"postal"`
 	timezone string  `json:"timezone"`
 	lastscan string  `json:"last_scan"`
+}
+
+func main() {
+	http.HandleFunc("/", handler)
+	fmt.Println("Server is listening on port 80")
+	log.Fatal(http.ListenAndServe(":80", nil))
 }
 
 func handler(w http.ResponseWriter, r *http.Request) {
@@ -78,6 +94,36 @@ func handler(w http.ResponseWriter, r *http.Request) {
 	}
 	ipinfodata := ipinfo(ip)
 
+
+	if (getenv("PUSHOVER_NOTIFY_COUNTRY", "") != "") {
+		if (ipinfodata["country"] == getenv("PUSHOVER_NOTIFY_COUNTRY","")) {
+			pushover_app := getenv("PUSHOVER_APP", "")
+			pushover_recipient := getenv("PUSHOVER_RECIPIENT", "")
+			if (pushover_app != "" && pushover_recipient != "") {
+				po := pushover.New(pushover_app)
+				recipient := pushover.NewRecipient(pushover_recipient)
+				message := &pushover.Message{
+					Title:       "Honeypot Attack for country "+getenv("PUSHOVER_NOTIFY_COUNTRY", ""),
+					Message:     "Check the honeypot, it seems you got a request the notify country\nURL: "+r.URL.Scheme+"://"+r.URL.Host+r.URL.Path+"\nCountry: "+getenv("PUSHOVER_NOTIFY_COUNTRY", ""),
+					Priority:    pushover.PriorityNormal,
+					/*URL:         "http://google.com",
+					URLTitle:    "Google",*/
+					Timestamp:   time.Now().Unix(),
+					Retry:       60 * time.Second,
+					Expire:      time.Hour,
+					DeviceName:  "Honeypot",
+					/*CallbackURL: "http://yourapp.com/callback",*/
+					Sound:       pushover.SoundGamelan,
+				}
+				// Send the message to the recipient
+				_, err := po.SendMessage(message, recipient)
+				if err != nil {
+					log.Panic(err)
+				}
+			}
+		}
+	}
+
 	hp_cookie := getHoneypotCookie(r)
 	if (hp_cookie == "") { 
 		a := time.Now().String()
@@ -114,14 +160,6 @@ func handler(w http.ResponseWriter, r *http.Request) {
 	counter_requests_404++
 
 	http.Error(w, "File not found.", 404)
-}
-
-func main() {
-		//ipinfo_token = os.Getenv("IPINFO_TOKEN")
-
-        http.HandleFunc("/", handler)
-        fmt.Println("Server is listening on port 80")
-        log.Fatal(http.ListenAndServe(":80", nil))
 }
 
 func serveFile(w http.ResponseWriter, Filename string) {
