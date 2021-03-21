@@ -167,6 +167,14 @@ func handler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if (strings.HasSuffix(r.URL.Path, "swagger.json")) {
+		counter_requests_attacks++
+		log_ip_blacklist(r)
+		w.Header().Set("Content-Type", "application/json")
+		serveFile(w, "assets/swagger.json")
+		return
+	}
+
 	log_404(r)
 	counter_requests_404++
 
