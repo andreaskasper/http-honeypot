@@ -85,15 +85,12 @@ func handler(w http.ResponseWriter, r *http.Request) {
 
 	currentTime := time.Now()
 	wait_seconds := time.Duration(rand.Float64()*20) * time.Second
+	ip := get_ip_address(r)
 
-	fmt.Println(currentTime.Format("2006-01-02 15:04:05"), " ", r.RemoteAddr, " ", r.URL.Path)
+	fmt.Println(currentTime.Format("2006-01-02 15:04:05"), " ", ip, " ", r.URL.Path)
 	counter_requests++;
 	stats_duration_wait += float64(wait_seconds.Milliseconds())/1000
 
-	ip, _, err := net.SplitHostPort(r.RemoteAddr)
-	if err != nil {
-		fmt.Fprintf(w, "userip: %q is not IP:port", r.RemoteAddr)
-	}
 	ipinfodata := ipinfo(ip)
 
 
@@ -134,7 +131,7 @@ func handler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	expire := time.Now().AddDate(24*365, 0, 0)
-    cookie := http.Cookie{"akhp", hp_cookie, "/", r.Host, expire, expire.Format(time.UnixDate), 86400*365, false, true, http.SameSiteDefaultMode, "akhp="+hp_cookie, []string{"akhp="+hp_cookie}}
+    cookie := http.Cookie{"akhp", hp_cookie, "/", strings.Split(r.Host,":")[0], expire, expire.Format(time.UnixDate), 86400*365, false, true, http.SameSiteDefaultMode, "akhp="+hp_cookie, []string{"akhp="+hp_cookie}}
     http.SetCookie(w, &cookie)
 
 	//fmt.Println("Cookie: "+hp_cookie)
@@ -340,4 +337,18 @@ func GetMD5Hash(text string) string {
     hasher := md5.New()
     hasher.Write([]byte(text))
     return hex.EncodeToString(hasher.Sum(nil))
+}
+
+func get_ip_address(r *http.Request) string {
+	/*Check for Cloudflare*/
+	val, ok := r.Header["CF-Connecting-IP"]
+	if ok {
+		return val[0];
+	}
+	/*Default Remote Addr*/
+	ip, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err != nil {
+		fmt.Println("userip: %q is not IP:port", r.RemoteAddr)
+	}
+	return ip
 }
