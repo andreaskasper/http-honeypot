@@ -13,6 +13,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/gregdel/pushover"
@@ -22,6 +23,7 @@ var counter_requests int = 0
 var counter_requests_404 int = 0
 var counter_requests_attacks int = 0
 var stats_duration_wait float64 = 0
+var dt_last_pushover_notify_country time.Time = time.Date(2000, 1, 1, 0, 0, 0, 0, time.UTC)
 
 type HonepotRequest struct {
 	http http.ResponseWriter
@@ -95,7 +97,7 @@ func handler(w http.ResponseWriter, r *http.Request) {
 	ipinfodata := ipinfo(ip)
 
 
-	if (getenv("PUSHOVER_NOTIFY_COUNTRY", "") != "") {
+	if ((getenv("PUSHOVER_NOTIFY_COUNTRY", "") != "") && (time.Now().Sub(dt_last_pushover_notify_country).Hours() >= 1)) {
 		if (ipinfodata["country"] == getenv("PUSHOVER_NOTIFY_COUNTRY","")) {
 			pushover_app := getenv("PUSHOVER_APP", "")
 			pushover_recipient := getenv("PUSHOVER_RECIPIENT", "")
@@ -120,6 +122,7 @@ func handler(w http.ResponseWriter, r *http.Request) {
 				if err != nil {
 					log.Panic(err)
 				}
+				dt_last_pushover_notify_country = time.Now()
 			}
 		}
 	}
@@ -154,6 +157,14 @@ func handler(w http.ResponseWriter, r *http.Request) {
 			log_ip_blacklist(r)
 			fmt.Fprintf(w, "a")
 			return
+	}
+
+	if (strings.HasSuffix(r.URL.Path, "/.env")) {
+		counter_requests_attacks++
+		log_ip_blacklist(r)
+		w.Header().Set("Content-Type", "text/plain")
+		fmt.Fprintf(w, "S3_BUCKET=\"superbucket\"\nSECRET_KEY=\"password123456abc\"\n")
+		return
 	}
 
 	log_404(r)
