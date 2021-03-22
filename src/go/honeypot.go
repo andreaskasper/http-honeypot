@@ -165,14 +165,14 @@ func handler(w http.ResponseWriter, r *http.Request) {
 			return
 		case "/admin/config.php", "/admin//config.php":
 			counter_requests_attacks++
-			log_ip_blacklist(info)
+			go log_ip_blacklist(info)
 			fmt.Fprintf(w, "a")
 			return
 	}
 
 	if (strings.HasSuffix(r.URL.Path, "/.env")) {
 		counter_requests_attacks++
-		log_ip_blacklist(info)
+		go log_ip_blacklist(info)
 		w.Header().Set("Content-Type", "text/plain")
 		fmt.Fprintf(w, "S3_BUCKET=\"superbucket\"\nSECRET_KEY=\"password123456abc\"\n")
 		return
@@ -180,7 +180,7 @@ func handler(w http.ResponseWriter, r *http.Request) {
 
 	if (strings.HasSuffix(r.URL.Path, "swagger.json")) {
 		counter_requests_attacks++
-		log_ip_blacklist(info)
+		go log_ip_blacklist(info)
 		w.Header().Set("Content-Type", "application/json")
 		serveFile(w, "assets/swagger.json")
 		return
@@ -188,13 +188,13 @@ func handler(w http.ResponseWriter, r *http.Request) {
 
 	if (strings.HasSuffix(r.URL.Path, "/owa/auth/x.js")) {
 		counter_requests_attacks++
-		log_ip_blacklist(info)
+		go log_ip_blacklist(info)
 		w.Header().Set("Content-Type", "text/javascript")
 		fmt.Fprintf(w, "while (true) { alert(\"The bee makes sum sum!\"); }")
 		return
 	}
 
-	log_404(info)
+	go log_404(info)
 	counter_requests_404++
 
 	http.Error(w, "File not found.", 404)
