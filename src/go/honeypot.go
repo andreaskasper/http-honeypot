@@ -166,7 +166,7 @@ func handler(w http.ResponseWriter, r *http.Request) {
 		case "/admin/config.php", "/admin//config.php":
 			counter_requests_attacks++
 			go log_ip_blacklist(info)
-			fmt.Fprintf(w, "a")
+			fmt.Fprintf(w, "No valid entrypoint")
 			return
 		case "/owa/":
 			http.Error(w, "go to login", 301)
