@@ -25,10 +25,15 @@ var counter_requests_attacks int = 0
 var stats_duration_wait float64 = 0
 var dt_last_pushover_notify_country time.Time = time.Date(2000, 1, 1, 0, 0, 0, 0, time.UTC)
 
-type HonepotRequest struct {
-	http http.ResponseWriter
+
+
+/*  ====== TYPES  ======= */
+
+type HoneypotRequest struct {
+	http *http.Request
 	timestamp time.Time
-	wait float64
+	wait time.Duration
+	ip string
 	ipinfo map[string]interface{}
 	cookie string
 }
@@ -49,6 +54,10 @@ type ipinfojson struct {
 	timezone string  `json:"timezone"`
 	lastscan string  `json:"last_scan"`
 }
+
+
+
+/* ====== MAIN ======*/
 
 func main() {
 	http.HandleFunc("/", handler)
@@ -83,19 +92,23 @@ func handler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	currentTime := time.Now()
-	wait_seconds := time.Duration(rand.Float64()*20) * time.Second
-	ip := get_ip_address(r)
+	info := HoneypotRequest{
+		http: r,
+		timestamp: time.Now(),
+		wait: time.Duration(rand.Float64()*20) * time.Second,
+		ip: get_ip_address(r),
 
-	fmt.Println(currentTime.Format("2006-01-02 15:04:05"), " ", ip, " ", r.URL.Path)
+	}
+
+	fmt.Println(info.timestamp.Format("2006-01-02 15:04:05"), " ", info.ip, " ", info.http.URL.Path)
 	counter_requests++;
-	stats_duration_wait += float64(wait_seconds.Milliseconds())/1000
+	stats_duration_wait += float64(info.wait.Milliseconds())/1000
 
-	ipinfodata := ipinfo(ip)
+	info.ipinfo = ipinfo(info.ip)
 
 
-	if ((getenv("PUSHOVER_NOTIFY_COUNTRY", "") != "") && (time.Now().Sub(dt_last_pushover_notify_country).Hours() >= 1)) {
-		if (ipinfodata["country"] == getenv("PUSHOVER_NOTIFY_COUNTRY","")) {
+	if ((getenv("PUSHOVER_NOTIFY_COUNTRY", "") != "") && (info.timestamp.Sub(dt_last_pushover_notify_country).Hours() >= 1)) {
+		if (info.ipinfo["country"] == getenv("PUSHOVER_NOTIFY_COUNTRY","")) {
 			pushover_app := getenv("PUSHOVER_APP", "")
 			pushover_recipient := getenv("PUSHOVER_RECIPIENT", "")
 			if (pushover_app != "" && pushover_recipient != "") {
@@ -103,7 +116,7 @@ func handler(w http.ResponseWriter, r *http.Request) {
 				recipient := pushover.NewRecipient(pushover_recipient)
 				message := &pushover.Message{
 					Title:       "Honeypot Attack for country "+getenv("PUSHOVER_NOTIFY_COUNTRY", ""),
-					Message:     "Check the honeypot, it seems you got a request the notify country\nURL: "+r.URL.Scheme+"://"+r.URL.Host+r.URL.Path+"\nCountry: "+getenv("PUSHOVER_NOTIFY_COUNTRY", ""),
+					Message:     "Check the honeypot, it seems you got a request the notify country\nURL: "+info.http.URL.Scheme+"://"+info.http.Host+info.http.URL.Path+"\nCountry: "+getenv("PUSHOVER_NOTIFY_COUNTRY", ""),
 					Priority:    pushover.PriorityNormal,
 					/*URL:         "http://google.com",
 					URLTitle:    "Google",*/
@@ -124,22 +137,23 @@ func handler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	hp_cookie := getHoneypotCookie(r)
-	if (hp_cookie == "") { 
-		a := time.Now().String()
-		hp_cookie = GetMD5Hash(a)
+	/* Check Cookie set or renew */
+
+	info.cookie = getHoneypotCookie(info.http)
+	if (info.cookie == "") { 
+		a := info.timestamp.String()
+		info.cookie = GetMD5Hash(a)
 	}
 
 	expire := time.Now().AddDate(24*365, 0, 0)
-    cookie := http.Cookie{"akhp", hp_cookie, "/", strings.Split(r.Host,":")[0], expire, expire.Format(time.UnixDate), 86400*365, false, true, http.SameSiteDefaultMode, "akhp="+hp_cookie, []string{"akhp="+hp_cookie}}
+    cookie := http.Cookie{"akhp", info.cookie, "/", strings.Split(r.Host,":")[0], expire, expire.Format(time.UnixDate), 86400*365, false, true, http.SameSiteDefaultMode, "akhp="+info.cookie, []string{"akhp="+info.cookie}}
     http.SetCookie(w, &cookie)
 
 	//fmt.Println("Cookie: "+hp_cookie)
 
-	log_csv(r, wait_seconds, ipinfodata, hp_cookie)
+	log_csv(info)
 
-
-	time.Sleep(wait_seconds)
+	time.Sleep(info.wait)
 
 	switch r.URL.Path {
 		case "/":
@@ -151,14 +165,14 @@ func handler(w http.ResponseWriter, r *http.Request) {
 			return
 		case "/admin/config.php", "/admin//config.php":
 			counter_requests_attacks++
-			log_ip_blacklist(r)
+			log_ip_blacklist(info)
 			fmt.Fprintf(w, "a")
 			return
 	}
 
 	if (strings.HasSuffix(r.URL.Path, "/.env")) {
 		counter_requests_attacks++
-		log_ip_blacklist(r)
+		log_ip_blacklist(info)
 		w.Header().Set("Content-Type", "text/plain")
 		fmt.Fprintf(w, "S3_BUCKET=\"superbucket\"\nSECRET_KEY=\"password123456abc\"\n")
 		return
@@ -166,13 +180,21 @@ func handler(w http.ResponseWriter, r *http.Request) {
 
 	if (strings.HasSuffix(r.URL.Path, "swagger.json")) {
 		counter_requests_attacks++
-		log_ip_blacklist(r)
+		log_ip_blacklist(info)
 		w.Header().Set("Content-Type", "application/json")
 		serveFile(w, "assets/swagger.json")
 		return
 	}
 
-	log_404(r)
+	if (strings.HasSuffix(r.URL.Path, "/owa/auth/x.js")) {
+		counter_requests_attacks++
+		log_ip_blacklist(info)
+		w.Header().Set("Content-Type", "text/javascript")
+		fmt.Fprintf(w, "while (true) { alert(\"The bee makes sum sum!\"); }")
+		return
+	}
+
+	log_404(info)
 	counter_requests_404++
 
 	http.Error(w, "File not found.", 404)
@@ -190,28 +212,44 @@ func serveFile(w http.ResponseWriter, Filename string) {
 	io.Copy(w, Openfile)
 }
 
-func log_csv(r *http.Request, wait_sec time.Duration,ipdata map[string]interface{}, hp_cookie string) {
+
+
+/* ====== LOG FUNCTIONS ====== */
+
+//Example: http://87.238.197.130/portal/redlion
+func log_404(info HoneypotRequest) {
+	f, err := os.OpenFile("/var/log/honeypot.urls.404.log", os.O_RDWR | os.O_CREATE | os.O_APPEND, 0666)
+	if err != nil {
+		log.Fatalf("error opening file: %v", err)
+	}
+	defer f.Close()
+
+	f.Write([]byte(info.http.URL.Scheme+"://"+info.http.Host+info.http.URL.Path+"\n"))
+	f.Close();
+}
+
+func log_csv(info HoneypotRequest) {
 	f, err := os.OpenFile("/var/log/honeypot.log1.csv", os.O_RDWR | os.O_CREATE | os.O_APPEND, 0666)
 	if err != nil {
 		log.Fatalf("error opening file: %v", err)
 	}
 	defer f.Close()
 
-	f.Write([]byte(fmt.Sprintf("%s;", time.Now().Format("2006-01-02 15:04:05") )))
-	f.Write([]byte(fmt.Sprintf("%s;", r.RemoteAddr )))
-	f.Write([]byte(fmt.Sprintf("%f;", float64(wait_sec.Milliseconds())/1000 )))
-	f.Write([]byte(fmt.Sprintf("%s;", r.Method )))
-	f.Write([]byte(fmt.Sprintf("%s;", r.Host )))
-	f.Write([]byte(fmt.Sprintf("%s;", r.URL.Path )))
+	f.Write([]byte(fmt.Sprintf("%s;", info.timestamp.Format("2006-01-02 15:04:05") )))
+	f.Write([]byte(fmt.Sprintf("%s;", info.ip )))
+	f.Write([]byte(fmt.Sprintf("%f;", float64(info.wait.Milliseconds())/1000 )))
+	f.Write([]byte(fmt.Sprintf("%s;", info.http.Method )))
+	f.Write([]byte(fmt.Sprintf("%s;", info.http.Host )))
+	f.Write([]byte(fmt.Sprintf("%s;", info.http.URL.Path )))
 
-	f.Write([]byte(fmt.Sprintf("%s;", ipdata["hostname"] )))
-	f.Write([]byte(fmt.Sprintf("%s;", ipdata["country"] )))
-	f.Write([]byte(fmt.Sprintf("%s;", ipdata["region"] )))
-	f.Write([]byte(fmt.Sprintf("%s;", ipdata["postal"] )))
-	f.Write([]byte(fmt.Sprintf("%s;", ipdata["city"] )))
+	f.Write([]byte(fmt.Sprintf("%s;", info.ipinfo["hostname"] )))
+	f.Write([]byte(fmt.Sprintf("%s;", info.ipinfo["country"] )))
+	f.Write([]byte(fmt.Sprintf("%s;", info.ipinfo["region"] )))
+	f.Write([]byte(fmt.Sprintf("%s;", info.ipinfo["postal"] )))
+	f.Write([]byte(fmt.Sprintf("%s;", info.ipinfo["city"] )))
 
-	f.Write([]byte(fmt.Sprintf("\"%s\";", r.Header.Get("User-Agent") )))
-	f.Write([]byte(fmt.Sprintf("%s;", hp_cookie )))
+	f.Write([]byte(fmt.Sprintf("\"%s\";", info.http.Header.Get("User-Agent") )))
+	f.Write([]byte(fmt.Sprintf("%s;", info.cookie )))
 
 	f.Write([]byte("\n"))
 
@@ -242,28 +280,20 @@ func log_csv(r *http.Request, wait_sec time.Duration,ipdata map[string]interface
 	f.Close();
 }
 
-func log_ip_blacklist(r *http.Request) {
+func log_ip_blacklist(info HoneypotRequest) {
 	f, err := os.OpenFile("/var/log/honeypot.ip.blacklist.log", os.O_RDWR | os.O_CREATE | os.O_APPEND, 0666)
 	if err != nil {
 		log.Fatalf("error opening file: %v", err)
 	}
 	defer f.Close()
 
-	f.Write([]byte(r.RemoteAddr+"\n"))
+	f.Write([]byte(info.ip+"\n"))
 	f.Close();
 }
 
-//Example: http://87.238.197.130/portal/redlion
-func log_404(r *http.Request) {
-	f, err := os.OpenFile("/var/log/honeypot.urls.404.log", os.O_RDWR | os.O_CREATE | os.O_APPEND, 0666)
-	if err != nil {
-		log.Fatalf("error opening file: %v", err)
-	}
-	defer f.Close()
 
-	f.Write([]byte(r.URL.Scheme+"://"+r.URL.Host+r.URL.Path+"\n"))
-	f.Close();
-}
+
+/* ======= HELPER FUNCS ======== */
 
 func BasicAuth(w http.ResponseWriter, r *http.Request) bool {
 	admin := getenv("METRICS_USER", "admin")
