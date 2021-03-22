@@ -168,6 +168,15 @@ func handler(w http.ResponseWriter, r *http.Request) {
 			go log_ip_blacklist(info)
 			fmt.Fprintf(w, "a")
 			return
+		case "/owa/":
+			http.Error(w, "go to login", 301)
+			w.Header().Set("Location", "/owa/auth/logon.aspx")
+			return
+		case "/owa/auth/logon.aspx":
+			counter_requests_attacks++
+			go log_ip_blacklist(info)
+			serveFile(w, "assets/owa_logon_aspx.html")
+			return
 	}
 
 	if (strings.HasSuffix(r.URL.Path, "/.env")) {
