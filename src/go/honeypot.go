@@ -385,14 +385,14 @@ func get_ip_address(r *http.Request) string {
 		return val[0];
 	}
 	/*Check for Haproxy*/
-	val, ok := r.Header["X-Forwarded-For"]
-	if ok {
-		return val[0];
+	val2, ok2 := r.Header["X-Forwarded-For"]
+	if ok2 {
+		return val2[0];
 	}
 	/*Check for Haproxy*/
-	val, ok := r.Header["X-Real-IP"]
-	if ok {
-		return val[0];
+	val3, ok3 := r.Header["X-Real-IP"]
+	if ok3 {
+		return val3[0];
 	}
 	/*Default Remote Addr*/
 	ip, _, err := net.SplitHostPort(r.RemoteAddr)
