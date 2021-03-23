@@ -168,6 +168,11 @@ func handler(w http.ResponseWriter, r *http.Request) {
 			go log_ip_blacklist(info)
 			fmt.Fprintf(w, "No valid entrypoint")
 			return
+		case "/login_sid.lua":
+			go log_ip_blacklist(info)
+			w.Header().Set("Content-Type", "text/xml")
+			fmt.Fprintf(w, `<?xml version="1.0" encoding="utf-8"?><SessionInfo><SID>0000000000000000</SID><Challenge>bd011af8</Challenge><BlockTime>11</BlockTime><Rights></Rights><Users><User>admin</User><User last="1">fritz6332</User></Users></SessionInfo>`)
+			return
 		case "/owa/":
 			http.Error(w, "go to login", 301)
 			w.Header().Set("Location", "/owa/auth/logon.aspx")
