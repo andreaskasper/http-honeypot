@@ -163,6 +163,12 @@ func handler(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("Content-Type", "image/ico")
 			serveFile(w, "assets/favicon.ico")
 			return
+		case "/actuator/health":
+			counter_requests_attacks++
+			go log_ip_blacklist(info)
+			w.Header().Set("Content-Type", "application/json")
+			fmt.Fprintf(w, `{"status":"UP","groups":["nuclear"]}`)
+			return
 		case "/admin/config.php", "/admin//config.php":
 			counter_requests_attacks++
 			go log_ip_blacklist(info)
