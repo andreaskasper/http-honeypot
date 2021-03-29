@@ -196,6 +196,14 @@ func handler(w http.ResponseWriter, r *http.Request) {
 			go log_ip_blacklist(info)
 			serveFile(w, "assets/owa_logon_aspx.html")
 			return
+		case "/pma/":
+		case "/pmd/":
+		case "/phpmyadmin/index.php":
+		case "/myadmin/index.php":
+			counter_requests_attacks++
+			go log_ip_blacklist(info)
+			serveFile(w, "assets/phpmyadmin_index.html")
+			return
 	}
 
 	if (strings.HasSuffix(r.URL.Path, "/.env")) {
