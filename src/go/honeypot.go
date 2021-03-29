@@ -169,7 +169,7 @@ func handler(w http.ResponseWriter, r *http.Request) {
 			return
 		case "/robots.txt":
 			w.Header().Set("Content-Type", "text/plain")
-			serveFile(w, "assets/favicon.ico")
+			serveFile(w, "assets/robots.txt")
 			return
 		case "/actuator/health":
 			counter_requests_attacks++
