@@ -163,6 +163,9 @@ func handler(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("Content-Type", "image/ico")
 			serveFile(w, "assets/favicon.ico")
 			return
+		case "/.well-known/security.txt":
+			serveFile(w, "security.txt")
+			return
 		case "/actuator/health":
 			counter_requests_attacks++
 			go log_ip_blacklist(info)
