@@ -1,0 +1,6 @@
+Contact: honeypot@goo1.de
+Expires: Fri, 31 Dec 2021 23:59 +0200
+Acknowledgments: https://github.com/andreaskasper/http-honeypot/wiki/Acknowledgments
+Preferred-Languages: de,en
+Canonical: https://raw.githubusercontent.com/andreaskasper/http-honeypot/main/src/go/security.txt
+Policy: https://github.com/andreaskasper/http-honeypot/wiki/
