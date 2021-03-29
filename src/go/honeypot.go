@@ -13,6 +13,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"regexp"
 	"strings"
 	"time"
 
@@ -196,14 +197,6 @@ func handler(w http.ResponseWriter, r *http.Request) {
 			go log_ip_blacklist(info)
 			serveFile(w, "assets/owa_logon_aspx.html")
 			return
-		case "/pma/":
-		case "/pmd/":
-		case "/phpmyadmin/index.php":
-		case "/myadmin/index.php":
-			counter_requests_attacks++
-			go log_ip_blacklist(info)
-			serveFile(w, "assets/phpmyadmin_index.html")
-			return
 	}
 
 	if (strings.HasSuffix(r.URL.Path, "/.env")) {
@@ -211,6 +204,14 @@ func handler(w http.ResponseWriter, r *http.Request) {
 		go log_ip_blacklist(info)
 		w.Header().Set("Content-Type", "text/plain")
 		fmt.Fprintf(w, "S3_BUCKET=\"superbucket\"\nSECRET_KEY=\"password123456abc\"\n")
+		return
+	}
+
+	matched, _ := regexp.MatchString(`/(pma|pmd|phpmyadmin|myadmin)/(index.php)?$`, strings.ToLower(r.URL.Path))
+	if (matched) {
+		counter_requests_attacks++
+		go log_ip_blacklist(info)
+		serveFile(w, "assets/phpmyadmin_index.html")
 		return
 	}
 
