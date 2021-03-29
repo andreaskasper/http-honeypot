@@ -164,7 +164,12 @@ func handler(w http.ResponseWriter, r *http.Request) {
 			serveFile(w, "assets/favicon.ico")
 			return
 		case "/.well-known/security.txt":
+			w.Header().Set("Content-Type", "text/plain")
 			serveFile(w, "security.txt")
+			return
+		case "/robots.txt":
+			w.Header().Set("Content-Type", "text/plain")
+			serveFile(w, "assets/favicon.ico")
 			return
 		case "/actuator/health":
 			counter_requests_attacks++
