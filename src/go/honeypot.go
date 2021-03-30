@@ -206,6 +206,14 @@ func handler(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintf(w, "S3_BUCKET=\"superbucket\"\nSECRET_KEY=\"password123456abc\"\n")
 		return
 	}
+	
+	if (strings.HasSuffix(r.URL.Path, "/.htpasswd")) {
+		counter_requests_attacks++
+		go log_ip_blacklist(info)
+		w.Header().Set("Content-Type", "text/plain")
+		fmt.Fprintf(w, "admindemo:$1$YFru^g}j$iY7qJ0IEAcUGO5wJdUTbO1\n")
+		return
+	}
 
 	matched, _ := regexp.MatchString(`/(pma|pmd|phpmyadmin|myadmin)/(index.php)?$`, strings.ToLower(r.URL.Path))
 	if (matched) {
