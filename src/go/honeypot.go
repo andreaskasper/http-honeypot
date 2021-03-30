@@ -214,6 +214,14 @@ func handler(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintf(w, "admindemo:$1$YFru^g}j$iY7qJ0IEAcUGO5wJdUTbO1\n")
 		return
 	}
+	
+	if (strings.HasSuffix(r.URL.Path, "/id_rsa")) {
+		counter_requests_attacks++
+		go log_ip_blacklist(info)
+		w.Header().Set("Content-Type", "text/plain")
+		serveFile(w, "assets/fake_id_rsa")
+		return
+	}
 
 	matched, _ := regexp.MatchString(`/(pma|pmd|phpmyadmin|myadmin)/(index.php)?$`, strings.ToLower(r.URL.Path))
 	if (matched) {
