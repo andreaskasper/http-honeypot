@@ -230,6 +230,14 @@ func handler(w http.ResponseWriter, r *http.Request) {
 		serveFile(w, "assets/phpmyadmin_index.html")
 		return
 	}
+	
+	matched2, _ := regexp.MatchString(`/(pma|pmd|phpmyadmin|myadmin)/scripts/setup.php$`, strings.ToLower(r.URL.Path))
+	if (matched2) {
+		counter_requests_attacks++
+		go log_ip_blacklist(info)
+		serveFile(w, "assets/phpmyadmin_scripts_setup.html")
+		return
+	}
 
 	if (strings.HasSuffix(r.URL.Path, "swagger.json")) {
 		counter_requests_attacks++
