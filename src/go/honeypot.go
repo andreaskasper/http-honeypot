@@ -228,7 +228,7 @@ func handler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	matched, _ := regexp.MatchString(`/(pma|pmd|phpmyadmin|myadmin)/(index.php)?$`, strings.ToLower(r.URL.Path))
+	matched, _ := regexp.MatchString(`/(pma|pmd|[_-]*php[_-]*myadmin|myadmin)/(index.php)?$`, strings.ToLower(r.URL.Path))
 	if (matched) {
 		counter_requests_attacks++
 		go log_ip_blacklist(info)
@@ -236,7 +236,7 @@ func handler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	
-	matched2, _ := regexp.MatchString(`/(_phpmyadmin|php-myadmin|pma|pmd|phpmyadmin|myadmin)/scripts/setup.php$`, strings.ToLower(r.URL.Path))
+	matched2, _ := regexp.MatchString(`/(pma|pmd|[_-]*php[_-]*myadmin|myadmin)/scripts/setup.php$`, strings.ToLower(r.URL.Path))
 	if (matched2) {
 		counter_requests_attacks++
 		go log_ip_blacklist(info)
