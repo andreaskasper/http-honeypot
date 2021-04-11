@@ -183,6 +183,11 @@ func handler(w http.ResponseWriter, r *http.Request) {
 			go log_ip_blacklist(info)
 			fmt.Fprintf(w, "No valid entrypoint")
 			return
+		case "/bag2":
+			counter_requests_attacks++
+			go log_ip_blacklist(info)
+			fmt.Fprintf(w, "Thanks for visiting bag2")
+			return
 		case "/login_sid.lua":
 			go log_ip_blacklist(info)
 			w.Header().Set("Content-Type", "text/xml")
@@ -231,7 +236,7 @@ func handler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	
-	matched2, _ := regexp.MatchString(`/(pma|pmd|phpmyadmin|myadmin)/scripts/setup.php$`, strings.ToLower(r.URL.Path))
+	matched2, _ := regexp.MatchString(`/(_phpmyadmin|php-myadmin|pma|pmd|phpmyadmin|myadmin)/scripts/setup.php$`, strings.ToLower(r.URL.Path))
 	if (matched2) {
 		counter_requests_attacks++
 		go log_ip_blacklist(info)
