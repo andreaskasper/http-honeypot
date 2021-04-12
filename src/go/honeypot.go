@@ -115,9 +115,16 @@ func handler(w http.ResponseWriter, r *http.Request) {
 			if (pushover_app != "" && pushover_recipient != "") {
 				po := pushover.New(pushover_app)
 				recipient := pushover.NewRecipient(pushover_recipient)
+				
+				msg := "Check the honeypot, it seems you got a request the notify country\n"
+				msg += "URL: "+info.http.URL.Scheme+"://"+info.http.Host+info.http.URL.Path+"\n"
+				msg += "Server: "+getenv("NAME","")+"\n"
+				msg += "Requester: "+info.ipinfo["hostname"]+"\n"
+				msg += "City: "+info.ipinfo["postal"]+" "+info.ipinfo["city"]+"; "+info.ipinfo["region"]+"; "+info.ipinfo["country"]+"\n"
+				
 				message := &pushover.Message{
 					Title:       "Honeypot Attack for country "+getenv("PUSHOVER_NOTIFY_COUNTRY", ""),
-					Message:     "Check the honeypot, it seems you got a request the notify country\nURL: "+info.http.URL.Scheme+"://"+info.http.Host+info.http.URL.Path+"\nCountry: "+getenv("PUSHOVER_NOTIFY_COUNTRY", ""),
+					Message:     msg,
 					Priority:    pushover.PriorityNormal,
 					/*URL:         "http://google.com",
 					URLTitle:    "Google",*/
