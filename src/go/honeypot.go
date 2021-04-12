@@ -195,6 +195,12 @@ func handler(w http.ResponseWriter, r *http.Request) {
 			go log_ip_blacklist(info)
 			fmt.Fprintf(w, "Thanks for visiting bag2")
 			return
+		case "/config/getuser":
+			counter_requests_attacks++
+			go log_ip_blacklist(info)
+			w.Header().Set("Content-Type", "text/plain")
+			fmt.Fprintf(w, "admindemo:$1$YFru^g}j$iY7qJ0IEAcUGO5wJdUTbO1\n")
+			return
 		case "/login_sid.lua":
 			go log_ip_blacklist(info)
 			w.Header().Set("Content-Type", "text/xml")
