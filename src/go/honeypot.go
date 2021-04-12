@@ -119,8 +119,8 @@ func handler(w http.ResponseWriter, r *http.Request) {
 				msg := "Check the honeypot, it seems you got a request the notify country\n"
 				msg += "URL: "+info.http.URL.Scheme+"://"+info.http.Host+info.http.URL.Path+"\n"
 				msg += "Server: "+getenv("NAME","")+"\n"
-				msg += "Requester: "+fmt.Sprintf("%s;", info.ipinfo["hostname"] )+"\n"
-				msg += "City: "+fmt.Sprintf("%s;", info.ipinfo["postal"] )+" "+fmt.Sprintf("%s;", info.ipinfo["city"] )+"; "+fmt.Sprintf("%s;", info.ipinfo["region"] )+"; "+fmt.Sprintf("%s;", info.ipinfo["country"] )+"\n"
+				msg += "Requester: "+fmt.Sprintf("%s", info.ipinfo["hostname"] )+"\n"
+				msg += "City: "+fmt.Sprintf("%s %s; %s; %s", info.ipinfo["postal"], info.ipinfo["city"], info.ipinfo["region"], info.ipinfo["country"] )+"\n"
 				
 				message := &pushover.Message{
 					Title:       "Honeypot Attack for country "+getenv("PUSHOVER_NOTIFY_COUNTRY", ""),
