@@ -35,6 +35,7 @@ $ docker run -p 8080:80 andreaskasper/http-honeypot
 | METRICS_PASSWORD        | admin             | Username for your prometheus metrics                                         |
 | METRICS_REALM           | Prometheus Server | Realm Name of your Prometheus Metrics                                        |
 | METRICS_USER            | password          | Password for your prometheus metrics                                         |
+| NAME                    |                   | Name of the Honeypot if you run more than one :-)                            |
 | PUSHOVER_APP            |                   | The app token of your Pushover app                                           |
 | PUSHOVER_NOTIFY_COUNTRY |                   | Enter the country-code of the country you wanna monitor (Example US, DE,...) |
 | PUSHOVER_RECIPIENT      |                   | The user token of your Pushover account, which should receive notifications  |
