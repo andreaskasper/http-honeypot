@@ -1,11 +1,28 @@
-FROM golang:1.16
+# ── Build stage ──────────────────────────────────────────────────────────────
+FROM golang:1.23-alpine AS builder
 
-WORKDIR /go/src/app
+WORKDIR /build
 
-ADD src/go/ /go/src/app/
+COPY src/go/ .
 
-#RUN go get -d -v honeypot.go
-RUN go mod download github.com/gregdel/pushover
-RUN go install -v honeypot.go
+# tidy regenerates go.sum, then build a static binary (no CGO, stripped)
+RUN go mod tidy && \
+    CGO_ENABLED=0 GOOS=linux go build -ldflags="-w -s" -o honeypot .
 
-CMD ["honeypot"]
+# ── Runtime stage ─────────────────────────────────────────────────────────────
+# alpine (not scratch) so we have:
+#   - ca-certificates  → HTTPS calls to api.goo1.de / Pushover / webhooks
+#   - wget             → docker-compose healthcheck
+FROM alpine:3.21
+
+RUN apk add --no-cache ca-certificates wget
+
+WORKDIR /app
+
+COPY --from=builder /build/honeypot .
+COPY src/go/assets/   assets/
+COPY src/go/security.txt .
+
+EXPOSE 80
+
+CMD ["./honeypot"]

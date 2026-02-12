@@ -1,5 +1,5 @@
 module honeypot.go
 
-go 1.16
+go 1.23
 
-require github.com/gregdel/pushover v0.0.0-20210216095829-2131362cb888 // indirect
+require github.com/gregdel/pushover v1.3.0
