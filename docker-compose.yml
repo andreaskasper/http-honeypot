@@ -22,10 +22,26 @@ services:
       PUSHOVER_RECIPIENT: ${PUSHOVER_RECIPIENT:-}
       PUSHOVER_NOTIFY_COUNTRY: ${PUSHOVER_NOTIFY_COUNTRY:-}
 
+      # Generic webhook (n8n / Slack / Make / Zapier)
+      WEBHOOK_URL: ${WEBHOOK_URL:-}
+      WEBHOOK_SECRET: ${WEBHOOK_SECRET:-}
+
       # Prometheus metrics basic auth
       METRICS_USER: ${METRICS_USER:-admin}
       METRICS_PASSWORD: ${METRICS_PASSWORD:-changeme}
       METRICS_REALM: ${METRICS_REALM:-Prometheus Server}
+
+      # Tar-pit delay: max random wait in seconds (default 20)
+      TAR_PIT_MAX_SEC: ${TAR_PIT_MAX_SEC:-20}
+
+      # Rate limit per IP per minute. Set very high to still collect data.
+      RATE_LIMIT_PER_MIN: ${RATE_LIMIT_PER_MIN:-1000}
+
+      # Set to "true" to disable ALL file logging (pushover/webhooks still fire)
+      LOG_DISABLED: ${LOG_DISABLED:-false}
+
+      # Rotate log files when they exceed this size in MB (default 100)
+      LOG_MAX_SIZE_MB: ${LOG_MAX_SIZE_MB:-100}
 
     volumes:
       - honeypot_logs:/var/log
