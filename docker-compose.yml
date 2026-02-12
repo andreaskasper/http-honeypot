@@ -1,0 +1,57 @@
+version: '3.8'
+
+services:
+
+  honeypot:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: andreaskasper/http-honeypot:latest
+    container_name: honeypot
+    restart: unless-stopped
+
+    ports:
+      - "${HONEYPOT_PORT:-80}:80"
+
+    environment:
+      # Honeypot identity
+      NAME: ${NAME:-my-honeypot}
+
+      # Pushover notifications
+      PUSHOVER_APP: ${PUSHOVER_APP:-}
+      PUSHOVER_RECIPIENT: ${PUSHOVER_RECIPIENT:-}
+      PUSHOVER_NOTIFY_COUNTRY: ${PUSHOVER_NOTIFY_COUNTRY:-}
+
+      # Prometheus metrics basic auth
+      METRICS_USER: ${METRICS_USER:-admin}
+      METRICS_PASSWORD: ${METRICS_PASSWORD:-changeme}
+      METRICS_REALM: ${METRICS_REALM:-Prometheus Server}
+
+    volumes:
+      - honeypot_logs:/var/log
+
+    # ── Traefik labels (enable if running behind Traefik) ──────────────────
+    # labels:
+    #   - "traefik.enable=true"
+    #   - "traefik.http.routers.honeypot.rule=Host(`honeypot.example.com`)"
+    #   - "traefik.http.routers.honeypot.entrypoints=websecure"
+    #   - "traefik.http.routers.honeypot.tls.certresolver=letsencrypt"
+    #   - "traefik.http.services.honeypot.loadbalancer.server.port=80"
+    # networks:
+    #   - traefik_proxy
+    # ────────────────────────────────────────────────────────────────────────
+
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:80/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+volumes:
+  honeypot_logs:
+    driver: local
+
+# networks:
+#   traefik_proxy:
+#     external: true
