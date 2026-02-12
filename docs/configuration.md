@@ -6,7 +6,7 @@ nav_order: 3
 # Configuration
 {: .no_toc }
 
-All configuration is done via environment variables. Copy `.env.example` to `.env` and edit it before starting the container.
+All configuration is done via environment variables. Copy `.env.example` to `.env` and edit it.
 
 ## Table of contents
 {: .no_toc .text-delta }
@@ -20,7 +20,7 @@ All configuration is done via environment variables. Copy `.env.example` to `.en
 
 | Variable | Default | Description |
 |---|---|---|
-| `NAME` | _(empty)_ | Human-readable name for this honeypot instance. Included in all Pushover and webhook messages — useful when running multiple honeypots. |
+| `NAME` | _(empty)_ | Human-readable name for this honeypot instance. Included in all Pushover and webhook messages. |
 | `HONEYPOT_PORT` | `80` | Host port in docker-compose. The container always listens on 80 internally. |
 
 ---
@@ -29,9 +29,7 @@ All configuration is done via environment variables. Copy `.env.example` to `.en
 
 | Variable | Default | Description |
 |---|---|---|
-| `TAR_PIT_MAX_SEC` | `20` | Maximum random delay per request in seconds. The actual delay is chosen using `crypto/rand` in the range `[0, TAR_PIT_MAX_SEC]`. Set `0` to disable. |
-
-The tar-pit is the honeypot's primary weapon: every request is held open for a random duration, wasting the scanner's threads and connection pool. The use of `crypto/rand` (instead of the predictable `math/rand`) prevents honeypot fingerprinting via timing analysis.
+| `TAR_PIT_MAX_SEC` | `20` | Max random delay per request in seconds. Uses `crypto/rand`. Set `0` to disable. |
 
 ---
 
@@ -39,7 +37,7 @@ The tar-pit is the honeypot's primary weapon: every request is held open for a r
 
 | Variable | Default | Description |
 |---|---|---|
-| `RATE_LIMIT_PER_MIN` | `1000` | Maximum requests per IP address per minute. Requests exceeding this return HTTP 429. The default is intentionally high so the honeypot collects as much attack data as possible. Lower this if you want to protect server resources. |
+| `RATE_LIMIT_PER_MIN` | `1000` | Max requests per IP per minute. Requests exceeding this return HTTP 429. |
 
 ---
 
@@ -47,12 +45,10 @@ The tar-pit is the honeypot's primary weapon: every request is held open for a r
 
 | Variable | Default | Description |
 |---|---|---|
-| `LOG_DISABLED` | `false` | Set `true` to disable all file logging. **Pushover and webhook notifications still fire.** Useful for low-disk or serverless environments. |
-| `LOG_MAX_SIZE_MB` | `100` | Rotate `/var/log/honeypot.jsonl` (and the IP blacklist) when the file reaches this size in MB. The rotated file is renamed to `honeypot.jsonl.YYYYMMDD-HHMMSS`. Rotation is built-in — no logrotate needed. |
+| `LOG_DISABLED` | `false` | Set `true` to disable all file logging. Pushover and webhook notifications still fire. |
+| `LOG_MAX_SIZE_MB` | `100` | Rotate `/var/log/honeypot.jsonl` when it reaches this size. Built-in, no logrotate needed. |
 
 ### Log fields
-
-Every line in `honeypot.jsonl` is a JSON object:
 
 ```json
 {
@@ -67,7 +63,8 @@ Every line in `honeypot.jsonl` is a JSON object:
   "is_attack": true,
   "attack_tag": "spring-actuator-env",
   "post_body": "",
-  "api_key_used": "",
+  "api_key_used": "hp_live_a1b2c3d4e5f6789012ab",
+  "is_honeytoken_use": true,
   "ipinfo": { "country": "CN", "city": "Beijing", "org": "AS4134" }
 }
 ```
@@ -84,6 +81,9 @@ jq -r 'select(.is_attack) | .attack_tag' /var/log/honeypot.jsonl | sort | uniq -
 # Top attacking IPs
 jq -r '.ip' /var/log/honeypot.jsonl | sort | uniq -c | sort -rn | head -20
 
+# All honeytoken reuse events
+jq 'select(.is_honeytoken_use == true)' /var/log/honeypot.jsonl
+
 # All Log4Shell probes
 jq 'select(.attack_tag == "log4shell")' /var/log/honeypot.jsonl
 ```
@@ -92,13 +92,11 @@ jq 'select(.attack_tag == "log4shell")' /var/log/honeypot.jsonl
 
 ## Pushover
 
-[Pushover](https://pushover.net/) sends push notifications to your phone.
-
 | Variable | Default | Description |
 |---|---|---|
 | `PUSHOVER_APP` | _(empty)_ | Your Pushover application API token. |
 | `PUSHOVER_RECIPIENT` | _(empty)_ | Your Pushover user or group key. |
-| `PUSHOVER_NOTIFY_COUNTRY` | _(empty)_ | ISO 3166-1 alpha-2 country code (e.g. `CN`, `RU`, `US`). When a request originates from this country, a Pushover notification is sent — throttled to **once per hour** to avoid alert fatigue. |
+| `PUSHOVER_NOTIFY_COUNTRY` | _(empty)_ | ISO 3166-1 alpha-2 code. Throttled to once per hour. |
 
 ---
 
@@ -106,10 +104,10 @@ jq 'select(.attack_tag == "log4shell")' /var/log/honeypot.jsonl
 
 | Variable | Default | Description |
 |---|---|---|
-| `WEBHOOK_URL` | _(empty)_ | HTTP endpoint that receives a JSON POST for every attack event and country notification. Works with n8n, Slack incoming webhooks, Make, Zapier, Discord, etc. |
-| `WEBHOOK_SECRET` | _(empty)_ | If set, sent as the `X-Honeypot-Secret` request header so your receiver can verify the request came from the honeypot. |
+| `WEBHOOK_URL` | _(empty)_ | HTTP endpoint for JSON attack events. |
+| `WEBHOOK_SECRET` | _(empty)_ | Sent as `X-Honeypot-Secret` header. |
 
-See the [Webhooks](webhooks) page for payload format and routing ideas.
+See the [Webhooks](webhooks) page for payload and routing examples.
 
 ---
 
@@ -117,10 +115,21 @@ See the [Webhooks](webhooks) page for payload format and routing ideas.
 
 | Variable | Default | Description |
 |---|---|---|
-| `METRICS_USER` | `admin` | Username for HTTP Basic Auth on `/metrics`. |
-| `METRICS_PASSWORD` | `password` | Password for HTTP Basic Auth on `/metrics`. **Change this before exposing to the internet!** |
-| `METRICS_REALM` | `Prometheus Server` | HTTP Basic Auth realm name. |
-| `METRICS_DISABLED` | `false` | Set `true` to disable the `/metrics` endpoint entirely. |
+| `METRICS_USER` | `admin` | Username for `/metrics` Basic Auth. |
+| `METRICS_PASSWORD` | `password` | Password for `/metrics` Basic Auth. **Change before exposing to the internet!** |
+| `METRICS_REALM` | `Prometheus Server` | HTTP Basic Auth realm. |
+| `METRICS_DISABLED` | `false` | Disable the `/metrics` endpoint entirely. |
 
 {: .warning }
-The `/metrics` endpoint is exposed on the **same port as the honeypot** (port 80). If your honeypot is on the public internet, either set strong credentials, use `METRICS_DISABLED=true`, or restrict access via Traefik middleware.
+The `/metrics` endpoint is on the same port as the honeypot. Either set strong credentials or restrict access via Traefik middleware.
+
+---
+
+## AbuseIPDB
+
+| Variable | Default | Description |
+|---|---|---|
+| `ABUSEIPDB_KEY` | _(empty)_ | AbuseIPDB API key. Leave empty to disable. |
+| `ABUSEIPDB_SLEEP` | `86400` | Cooldown in seconds before reporting the same IP again. |
+
+See the [AbuseIPDB](abuseipdb) page for details.

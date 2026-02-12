@@ -13,6 +13,7 @@ import (
 	"math/big"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"regexp"
 	"strconv"
@@ -29,10 +30,11 @@ import (
 ═══════════════════════════════════════════════════════════════════════════ */
 
 var (
-	counterRequests        int64 // atomic
-	counterRequests404     int64 // atomic
-	counterRequestsAttacks int64 // atomic
-	statsDurationWaitMS    int64 // atomic, milliseconds
+	counterRequests         int64 // atomic
+	counterRequests404      int64 // atomic
+	counterRequestsAttacks  int64 // atomic
+	counterHoneytokensUsed  int64 // atomic
+	statsDurationWaitMS     int64 // atomic, milliseconds
 
 	notifyMu                    sync.Mutex
 	dtLastPushoverNotifyCountry = time.Date(2000, 1, 1, 0, 0, 0, 0, time.UTC)
@@ -69,37 +71,135 @@ func (r *rateLimiter) allow(ip string) bool {
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
+   ABUSEIPDB REPORTER  —  per-IP cooldown, async, non-fatal
+═══════════════════════════════════════════════════════════════════════════ */
+
+type abuseReporter struct {
+	mu         sync.Mutex
+	lastReport map[string]time.Time // key = IP
+}
+
+var abuser = &abuseReporter{
+	lastReport: make(map[string]time.Time),
+}
+
+// reportAbuseIPDB reports the attacker's IP to AbuseIPDB if the configured cooldown
+// has elapsed since the last report for that IP.  Runs in its own goroutine.
+func (a *abuseReporter) report(info HoneypotRequest) {
+	apiKey := getenv("ABUSEIPDB_KEY", "")
+	if apiKey == "" {
+		return
+	}
+	sleepSec := time.Duration(getenvInt("ABUSEIPDB_SLEEP", 86400)) * time.Second
+
+	a.mu.Lock()
+	last, seen := a.lastReport[info.ip]
+	if seen && time.Since(last) < sleepSec {
+		a.mu.Unlock()
+		return
+	}
+	a.lastReport[info.ip] = time.Now()
+	a.mu.Unlock()
+
+	// Category 21 = Web App Attack; add 14 (Port Scan) for broad scanners.
+	categories := "21"
+	if strings.Contains(info.attackTag, "scan") || strings.Contains(info.attackTag, "cgi") {
+		categories = "14,21"
+	}
+
+	comment := fmt.Sprintf(
+		"HTTP honeypot [%s]: %s | %s %s | UA: %s",
+		getenv("NAME", "honeypot"),
+		info.attackTag,
+		info.http.Method,
+		info.http.URL.Path,
+		info.http.Header.Get("User-Agent"),
+	)
+	// AbuseIPDB comment max is 1024 chars
+	if len(comment) > 1024 {
+		comment = comment[:1021] + "..."
+	}
+
+	form := url.Values{}
+	form.Set("ip", info.ip)
+	form.Set("categories", categories)
+	form.Set("comment", comment)
+
+	req, err := http.NewRequest(http.MethodPost,
+		"https://api.abuseipdb.com/api/v2/report",
+		strings.NewReader(form.Encode()))
+	if err != nil {
+		log.Printf("abuseipdb build error: %v", err)
+		return
+	}
+	req.Header.Set("Key", apiKey)
+	req.Header.Set("Accept", "application/json")
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+	client := &http.Client{Timeout: 8 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		log.Printf("abuseipdb send error for %s: %v", info.ip, err)
+		return
+	}
+	defer resp.Body.Close()
+	log.Printf("abuseipdb reported ip=%s tag=%s http=%d", info.ip, info.attackTag, resp.StatusCode)
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   HONEYTOKENS
+   Format: hp_live_{md5(ip+"-"+tag)[:20]}
+   Embedded in fake responses so we detect when an attacker reuses them.
+═══════════════════════════════════════════════════════════════════════════ */
+
+const honeytokenPrefix = "hp_live_"
+
+// honeytoken generates a deterministic fake API key for a given IP + trap.
+// The token is unique per IP so if attacker A shares it with attacker B,
+// we can correlate both events back to the original theft.
+func honeytoken(ip, tag string) string {
+	return honeytokenPrefix + getMD5Hash(ip+"-"+tag)[:20]
+}
+
+// isHoneytoken returns true if the string looks like one of our fake tokens.
+func isHoneytoken(s string) bool {
+	return strings.HasPrefix(s, honeytokenPrefix) && len(s) == len(honeytokenPrefix)+20
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
    TYPES
 ═══════════════════════════════════════════════════════════════════════════ */
 
 type HoneypotRequest struct {
-	http       *http.Request
-	timestamp  time.Time
-	wait       time.Duration
-	ip         string
-	ipinfo     map[string]interface{}
-	cookie     string
-	postBody   string
-	apiKeyUsed string // captured from X-Api-Key / Authorization headers
-	isAttack   bool
-	attackTag  string
+	http          *http.Request
+	timestamp     time.Time
+	wait          time.Duration
+	ip            string
+	ipinfo        map[string]interface{}
+	cookie        string
+	postBody      string
+	apiKeyUsed    string // captured from X-Api-Key / Authorization headers
+	isAttack      bool
+	attackTag     string
+	isHoneytokenUse bool // true when a hp_live_ token was submitted
 }
 
 // LogEntry is the structured JSON line written per request.
 type LogEntry struct {
-	Timestamp  string                 `json:"timestamp"`
-	IP         string                 `json:"ip"`
-	WaitSec    float64                `json:"wait_sec"`
-	Method     string                 `json:"method"`
-	Host       string                 `json:"host"`
-	Path       string                 `json:"path"`
-	UserAgent  string                 `json:"user_agent"`
-	Cookie     string                 `json:"cookie"`
-	IsAttack   bool                   `json:"is_attack"`
-	AttackTag  string                 `json:"attack_tag,omitempty"`
-	PostBody   string                 `json:"post_body,omitempty"`
-	APIKeyUsed string                 `json:"api_key_used,omitempty"`
-	IPInfo     map[string]interface{} `json:"ipinfo,omitempty"`
+	Timestamp       string                 `json:"timestamp"`
+	IP              string                 `json:"ip"`
+	WaitSec         float64                `json:"wait_sec"`
+	Method          string                 `json:"method"`
+	Host            string                 `json:"host"`
+	Path            string                 `json:"path"`
+	UserAgent       string                 `json:"user_agent"`
+	Cookie          string                 `json:"cookie"`
+	IsAttack        bool                   `json:"is_attack"`
+	AttackTag       string                 `json:"attack_tag,omitempty"`
+	PostBody        string                 `json:"post_body,omitempty"`
+	APIKeyUsed      string                 `json:"api_key_used,omitempty"`
+	IsHoneytokenUse bool                   `json:"is_honeytoken_use,omitempty"`
+	IPInfo          map[string]interface{} `json:"ipinfo,omitempty"`
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -108,9 +208,20 @@ type LogEntry struct {
 
 func main() {
 	rl.limit = getenvInt("RATE_LIMIT_PER_MIN", 1000)
-	log.Printf("honeypot starting | rate_limit=%d/min | log_disabled=%s | tar_pit_max=%ds | metrics_disabled=%s",
-		rl.limit, getenv("LOG_DISABLED", "false"),
-		getenvInt("TAR_PIT_MAX_SEC", 20), getenv("METRICS_DISABLED", "false"))
+	log.Printf(
+		"honeypot starting | rate_limit=%d/min | log_disabled=%s | tar_pit_max=%ds | "+
+			"metrics_disabled=%s | abuseipdb=%s",
+		rl.limit,
+		getenv("LOG_DISABLED", "false"),
+		getenvInt("TAR_PIT_MAX_SEC", 20),
+		getenv("METRICS_DISABLED", "false"),
+		func() string {
+			if getenv("ABUSEIPDB_KEY", "") != "" {
+				return fmt.Sprintf("enabled (sleep=%ds)", getenvInt("ABUSEIPDB_SLEEP", 86400))
+			}
+			return "disabled"
+		}(),
+	)
 
 	http.HandleFunc("/", handler)
 	log.Fatal(http.ListenAndServe(":80", nil))
@@ -138,6 +249,8 @@ func handler(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintf(w, "# TYPE http_requests counter\n")
 		fmt.Fprintf(w, "http_requests{code=\"404\"} %d\n", atomic.LoadInt64(&counterRequests404))
 		fmt.Fprintf(w, "http_requests{code=\"attack\"} %d\n", atomic.LoadInt64(&counterRequestsAttacks))
+		fmt.Fprintf(w, "# HELP http_honeytokens_used Honeytoken reuse events\n")
+		fmt.Fprintf(w, "# TYPE http_honeytokens_used counter\nhttp_honeytokens_used{} %d\n", atomic.LoadInt64(&counterHoneytokensUsed))
 		fmt.Fprintf(w, "# HELP http_duration_ms Cumulative tar-pit delay ms\n")
 		fmt.Fprintf(w, "# TYPE http_duration_ms counter\nhttp_duration_ms{} %d\n", atomic.LoadInt64(&statsDurationWaitMS))
 		return
@@ -171,8 +284,24 @@ func handler(w http.ResponseWriter, r *http.Request) {
 	/* ── Capture API keys / Bearer tokens ────────────────────────────────── */
 	info.apiKeyUsed = captureAPIKey(r)
 
+	/* ── Honeytoken reuse detection ────────────────────────────────────────── */
+	// Check EVERY header value for a hp_live_ token (some tools embed keys in
+	// custom headers we might not explicitly capture via captureAPIKey).
+	if tk := detectHoneytokenInRequest(r, info.apiKeyUsed); tk != "" {
+		info.isHoneytokenUse = true
+		info.apiKeyUsed = tk
+		info.isAttack = true
+		info.attackTag = "honeytoken-used"
+		atomic.AddInt64(&counterHoneytokensUsed, 1)
+		atomic.AddInt64(&counterRequestsAttacks, 1)
+		go logIPBlacklist(info)
+		go sendWebhook(info, "honeytoken_used") // high-priority event type
+		go abuser.report(info)
+		log.Printf("HONEYTOKEN USED by %s: %s", info.ip, tk)
+	}
+
 	/* ── Log4Shell detection in headers ──────────────────────────────────── */
-	if detectLog4Shell(r) {
+	if !info.isHoneytokenUse && detectLog4Shell(r) {
 		info.attackTag = "log4shell"
 	}
 
@@ -213,6 +342,25 @@ func handler(w http.ResponseWriter, r *http.Request) {
 		body, err := io.ReadAll(io.LimitReader(r.Body, 8*1024))
 		if err == nil {
 			info.postBody = string(body)
+			// Also check POST body for honeytoken reuse
+			if !info.isHoneytokenUse && strings.Contains(info.postBody, honeytokenPrefix) {
+				for _, word := range strings.Fields(info.postBody) {
+					word = strings.Trim(word, `"'{}:,`)
+					if isHoneytoken(word) {
+						info.isHoneytokenUse = true
+						info.apiKeyUsed = word
+						info.isAttack = true
+						info.attackTag = "honeytoken-used"
+						atomic.AddInt64(&counterHoneytokensUsed, 1)
+						atomic.AddInt64(&counterRequestsAttacks, 1)
+						go logIPBlacklist(info)
+						go sendWebhook(info, "honeytoken_used")
+						go abuser.report(info)
+						log.Printf("HONEYTOKEN IN POST BODY used by %s: %s", info.ip, word)
+						break
+					}
+				}
+			}
 		}
 	}
 
@@ -225,6 +373,9 @@ func handler(w http.ResponseWriter, r *http.Request) {
 	/* ══════════════════════════════════════════════════════════════════════
 	   ROUTING
 	══════════════════════════════════════════════════════════════════════ */
+
+	// If a honeytoken was the only trigger, still respond normally so the attacker
+	// doesn’t know they were detected.
 
 	path := r.URL.Path
 	pathLower := strings.ToLower(path)
@@ -258,7 +409,14 @@ func handler(w http.ResponseWriter, r *http.Request) {
 	case "/actuator/env":
 		markAttack(&info, "spring-actuator-env")
 		w.Header().Set("Content-Type", "application/json")
-		fmt.Fprint(w, `{"activeProfiles":["prod"],"propertySources":[{"name":"systemEnvironment","properties":{"DB_PASSWORD":{"value":"prod_db_pass_2024!"},"AWS_SECRET_ACCESS_KEY":{"value":"wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"},"SPRING_DATASOURCE_URL":{"value":"jdbc:postgresql://prod-db.internal:5432/appdb"}}}]}`)
+		// Embed an IP-specific honeytoken as the AWS secret key.
+		token := honeytoken(info.ip, "spring-actuator-env")
+		fmt.Fprintf(w,
+			`{"activeProfiles":["prod"],"propertySources":[{"name":"systemEnvironment",`+
+				`"properties":{"DB_PASSWORD":{"value":"prod_db_pass_2024!"},`+
+				`"AWS_SECRET_ACCESS_KEY":{"value":%q},`+
+				`"SPRING_DATASOURCE_URL":{"value":"jdbc:postgresql://prod-db.internal:5432/appdb"}}}]}`,
+			token)
 		return
 	case "/actuator/beans", "/actuator/mappings", "/actuator/trace", "/actuator/httptrace":
 		markAttack(&info, "spring-actuator")
@@ -292,7 +450,7 @@ func handler(w http.ResponseWriter, r *http.Request) {
 	case "/xmlrpc.php":
 		markAttack(&info, "xmlrpc")
 		w.Header().Set("Content-Type", "text/xml")
-		fmt.Fprint(w, `<?xml version="1.0"?><methodResponse><fault><value><struct><member><name>faultCode</name><value><int>405</int></value></member><member><name>faultString</name><value><string>XML-RPC server accepts POST requests only.</string></value></member></struct></value></fault></methodResponse>`)
+		fmt.Fprint(w, `<?xml version="1.0"?><methodResponse><fault><value><struct><member><n>faultCode</n><value><int>405</int></value></member><member><n>faultString</n><value><string>XML-RPC server accepts POST requests only.</string></value></member></struct></value></fault></methodResponse>`)
 		return
 	case "/wp-includes/wlwmanifest.xml":
 		markAttack(&info, "wp-wlwmanifest")
@@ -488,7 +646,6 @@ func handler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	/* ── Dynamic REST API IDOR trap ─────────────────────────────────────── */
-	// Catches scanners probing /api/v*/users/1, /api/v*/accounts/42, etc.
 	if restAPITrap(w, r, &info) {
 		return
 	}
@@ -520,7 +677,13 @@ func handler(w http.ResponseWriter, r *http.Request) {
 	case strings.HasSuffix(path, "/.env") || path == "/.env":
 		markAttack(&info, "env-file")
 		w.Header().Set("Content-Type", "text/plain")
-		fmt.Fprint(w, "APP_ENV=production\nDB_HOST=prod-db.internal\nDB_PASSWORD=Sup3rS3cr3t!\nAWS_ACCESS_KEY_ID=AKIAIOSFODNN7EXAMPLE\nAWS_SECRET_ACCESS_KEY=wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY\nSTRIPE_SECRET_KEY=sk_live_examplekey123456\n")
+		// Embed honeytoken as STRIPE key (common target for credential harvesters)
+		token := honeytoken(info.ip, "env-file")
+		fmt.Fprintf(w,
+			"APP_ENV=production\nDB_HOST=prod-db.internal\nDB_PASSWORD=Sup3rS3cr3t!\n"+
+				"AWS_ACCESS_KEY_ID=AKIAIOSFODNN7EXAMPLE\n"+
+				"AWS_SECRET_ACCESS_KEY=wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY\n"+
+				"STRIPE_SECRET_KEY=%s\n", token)
 		return
 	case strings.HasSuffix(path, "/.htpasswd"):
 		markAttack(&info, "htpasswd")
@@ -555,7 +718,11 @@ func handler(w http.ResponseWriter, r *http.Request) {
 	case strings.HasSuffix(pathLower, ".aws/credentials") || strings.HasSuffix(pathLower, ".aws/config"):
 		markAttack(&info, "aws-credentials")
 		w.Header().Set("Content-Type", "text/plain")
-		fmt.Fprint(w, "[default]\naws_access_key_id = AKIAIOSFODNN7EXAMPLE\naws_secret_access_key = wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY\nregion = eu-west-1\n")
+		// Embed honeytoken as the AWS secret access key
+		token := honeytoken(info.ip, "aws-credentials")
+		fmt.Fprintf(w,
+			"[default]\naws_access_key_id = AKIAIOSFODNN7EXAMPLE\n"+
+				"aws_secret_access_key = %s\nregion = eu-west-1\n", token)
 		return
 	case strings.HasSuffix(pathLower, ".sql") || strings.HasSuffix(pathLower, "backup.zip") || strings.HasSuffix(pathLower, "backup.tar.gz"):
 		markAttack(&info, "backup-file")
@@ -618,8 +785,8 @@ func handler(w http.ResponseWriter, r *http.Request) {
    TRAP FUNCTIONS
 ═══════════════════════════════════════════════════════════════════════════ */
 
-// restAPITrap catches IDOR-style scanners probing /api/v*/users/{id},
-// /api/v*/accounts/{id}, etc. It captures any supplied API key in the headers.
+// restAPITrap catches IDOR-style scanners probing /api/v*/users/{id} etc.
+// The fake response embeds an IP-specific honeytoken as the api_key field.
 func restAPITrap(w http.ResponseWriter, r *http.Request, info *HoneypotRequest) bool {
 	apiRe := regexp.MustCompile(`^/api/v\d+/(users|accounts|admin|customers|employees)/(\d+)`)
 	m := apiRe.FindStringSubmatch(r.URL.Path)
@@ -629,12 +796,13 @@ func restAPITrap(w http.ResponseWriter, r *http.Request, info *HoneypotRequest) 
 	resource := m[1]
 	id := m[2]
 	markAttack(info, "rest-api-idor-"+resource)
+	token := honeytoken(info.ip, "rest-api-idor-"+resource)
 	w.Header().Set("Content-Type", "application/json")
 	fmt.Fprintf(w,
 		`{"id":%s,"email":"user%s@contoso.internal","role":"user",`+
 			`"password_hash":"$2b$12$FakeHashForHoneypotXXXXXXXXXXXXXXX",`+
-			`"api_key":"sk_live_honeypot%s","created_at":"2024-01-15T10:30:00Z"}`,
-		id, id, id)
+			`"api_key":%q,"created_at":"2024-01-15T10:30:00Z"}`,
+		id, id, token)
 	return true
 }
 
@@ -644,6 +812,10 @@ func restAPITrap(w http.ResponseWriter, r *http.Request, info *HoneypotRequest) 
 
 // markAttack flags the request, increments counters, and fires async side effects.
 func markAttack(info *HoneypotRequest, tag string) {
+	if info.isHoneytokenUse {
+		// Already handled as honeytoken; don’t double-count.
+		return
+	}
 	info.isAttack = true
 	if info.attackTag == "" {
 		info.attackTag = tag
@@ -651,6 +823,27 @@ func markAttack(info *HoneypotRequest, tag string) {
 	atomic.AddInt64(&counterRequestsAttacks, 1)
 	go logIPBlacklist(*info)
 	go sendWebhook(*info, "attack")
+	go abuser.report(*info)
+}
+
+// detectHoneytokenInRequest scans all request headers (and the already-captured
+// apiKey) for a hp_live_ token.  Returns the token if found, empty string otherwise.
+func detectHoneytokenInRequest(r *http.Request, capturedKey string) string {
+	if isHoneytoken(capturedKey) {
+		return capturedKey
+	}
+	for _, vals := range r.Header {
+		for _, v := range vals {
+			// A header might contain the token inline (e.g. "Bearer hp_live_...")
+			for _, word := range strings.Fields(v) {
+				word = strings.Trim(word, `"',;`)
+				if isHoneytoken(word) {
+					return word
+				}
+			}
+		}
+	}
+	return ""
 }
 
 // detectLog4Shell scans all request headers and the query string for JNDI injection.
@@ -703,26 +896,26 @@ func wpLoginHTML() string {
 ═══════════════════════════════════════════════════════════════════════════ */
 
 // logJSON writes a structured JSON line to /var/log/honeypot.jsonl.
-// Skipped entirely when LOG_DISABLED=true.
 func logJSON(info HoneypotRequest) {
 	if strings.EqualFold(getenv("LOG_DISABLED", "false"), "true") {
 		return
 	}
 
 	entry := LogEntry{
-		Timestamp:  info.timestamp.Format(time.RFC3339),
-		IP:         info.ip,
-		WaitSec:    float64(info.wait.Milliseconds()) / 1000,
-		Method:     info.http.Method,
-		Host:       info.http.Host,
-		Path:       info.http.URL.Path,
-		UserAgent:  info.http.Header.Get("User-Agent"),
-		Cookie:     info.cookie,
-		IsAttack:   info.isAttack,
-		AttackTag:  info.attackTag,
-		PostBody:   info.postBody,
-		APIKeyUsed: info.apiKeyUsed,
-		IPInfo:     info.ipinfo,
+		Timestamp:       info.timestamp.Format(time.RFC3339),
+		IP:              info.ip,
+		WaitSec:         float64(info.wait.Milliseconds()) / 1000,
+		Method:          info.http.Method,
+		Host:            info.http.Host,
+		Path:            info.http.URL.Path,
+		UserAgent:       info.http.Header.Get("User-Agent"),
+		Cookie:          info.cookie,
+		IsAttack:        info.isAttack,
+		AttackTag:       info.attackTag,
+		PostBody:        info.postBody,
+		APIKeyUsed:      info.apiKeyUsed,
+		IsHoneytokenUse: info.isHoneytokenUse,
+		IPInfo:          info.ipinfo,
 	}
 
 	data, err := json.Marshal(entry)
@@ -801,23 +994,24 @@ func sendPushover(info HoneypotRequest) {
 }
 
 func sendWebhook(info HoneypotRequest, event string) {
-	url := getenv("WEBHOOK_URL", "")
-	if url == "" {
+	webhookURL := getenv("WEBHOOK_URL", "")
+	if webhookURL == "" {
 		return
 	}
 	payload := map[string]interface{}{
-		"event":        event,
-		"server":       getenv("NAME", ""),
-		"timestamp":    info.timestamp.Format(time.RFC3339),
-		"ip":           info.ip,
-		"method":       info.http.Method,
-		"host":         info.http.Host,
-		"path":         info.http.URL.Path,
-		"user_agent":   info.http.Header.Get("User-Agent"),
-		"is_attack":    info.isAttack,
-		"attack_tag":   info.attackTag,
-		"api_key_used": info.apiKeyUsed,
-		"ipinfo":       info.ipinfo,
+		"event":             event,
+		"server":            getenv("NAME", ""),
+		"timestamp":         info.timestamp.Format(time.RFC3339),
+		"ip":                info.ip,
+		"method":            info.http.Method,
+		"host":              info.http.Host,
+		"path":              info.http.URL.Path,
+		"user_agent":        info.http.Header.Get("User-Agent"),
+		"is_attack":         info.isAttack,
+		"attack_tag":        info.attackTag,
+		"api_key_used":      info.apiKeyUsed,
+		"is_honeytoken_use": info.isHoneytokenUse,
+		"ipinfo":            info.ipinfo,
 	}
 	if info.postBody != "" {
 		payload["post_body"] = info.postBody
@@ -827,7 +1021,7 @@ func sendWebhook(info HoneypotRequest, event string) {
 		log.Printf("webhook marshal error: %v", err)
 		return
 	}
-	req, err := http.NewRequest(http.MethodPost, url, bytes.NewReader(body))
+	req, err := http.NewRequest(http.MethodPost, webhookURL, bytes.NewReader(body))
 	if err != nil {
 		log.Printf("webhook request build error: %v", err)
 		return

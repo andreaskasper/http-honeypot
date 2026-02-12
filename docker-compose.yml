@@ -42,6 +42,10 @@ services:
       METRICS_REALM: ${METRICS_REALM:-Prometheus Server}
       METRICS_DISABLED: ${METRICS_DISABLED:-false}
 
+      # AbuseIPDB automatic reporting
+      ABUSEIPDB_KEY: ${ABUSEIPDB_KEY:-}
+      ABUSEIPDB_SLEEP: ${ABUSEIPDB_SLEEP:-86400}
+
     volumes:
       - honeypot_logs:/var/log
 
