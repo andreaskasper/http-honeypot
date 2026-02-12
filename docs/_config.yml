@@ -1,0 +1,36 @@
+title: HTTP Honeypot
+description: "High-interaction HTTP honeypot with 40+ attack traps, structured JSON logging, Pushover & webhook notifications, and Prometheus metrics."
+url: "https://andreaskasper.github.io"
+baseurl: "/http-honeypot"
+
+remote_theme: just-the-docs/just-the-docs@v0.10.0
+
+color_scheme: dark
+
+logo: "/assets/images/honeypot-logo.png"
+
+aux_links:
+  "GitHub":
+    - "https://github.com/andreaskasper/http-honeypot"
+  "Docker Hub":
+    - "https://hub.docker.com/r/andreaskasper/http-honeypot"
+
+aux_links_new_tab: true
+
+footer_content: "HTTP Honeypot by <a href='https://github.com/andreaskasper'>Andreas Kasper</a>. Distributed under the MIT License."
+
+plugins:
+  - jekyll-remote-theme
+  - jekyll-seo-tag
+
+callouts_level: quiet
+callouts:
+  warning:
+    title: Warning
+    color: red
+  tip:
+    title: Tip
+    color: green
+  note:
+    title: Note
+    color: blue
