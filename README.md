@@ -1,71 +1,147 @@
-# HTTP Honeypot
-A simple web honeypot designed to capture typical hacking web requests and respond with mock answers. This project creates a fake web server that deliberately replies very, very sloooooowwwwwly, effectively locking up malicious web clients for extended periods—hours or even days. The idea is to place your real web server on a different port, letting this honeypot keep script kiddies busy while leaving your actual server undisturbed.
+# 🍯 HTTP Honeypot
+
+A high-interaction HTTP honeypot written in Go. It simulates **40+ real attack surfaces** — WordPress, Spring Boot, Exchange, Kubernetes, VPN appliances, cloud metadata endpoints and more — responds with convincing fake data to keep attackers engaged, and tarpits every request with a cryptographically random delay.
+
+All hits are logged as structured JSON and can be forwarded in real time to **Pushover**, any **webhook** (n8n, Slack, Make, Zapier…), or **Prometheus**.
+
+📖 **Full documentation:** https://andreaskasper.github.io/http-honeypot/
 
 ---
 
 ## Features
-- 🌐 Provides a tarpit for would-be attackers.
-- 🛡️ Protects your real web server by acting as a decoy.
-- 🕒 Responds intentionally slowly to keep attackers locked in.
+
+- 🎣 **40+ attack traps** — Spring Actuator, WordPress, Exchange/OWA, Fortinet, Kubernetes, Docker API, AWS/GCP metadata, Git leaks, phpMyAdmin, Jenkins, Confluence, web shells, and more
+- 🐢 **Tar-pit** — every response is delayed by a cryptographically random `[0, TAR_PIT_MAX_SEC]` seconds
+- 🏷️ **`attack_tag`** — every matched trap is tagged (e.g. `spring-actuator-env`, `log4shell`, `k8s-secrets`) so webhooks can route by attack type
+- 🔍 **Log4Shell detection** — scans all request headers and query strings for `${jndi:` payloads
+- 📋 **Structured JSON logging** — one JSON line per request to `/var/log/honeypot.jsonl`
+- 🔔 **Pushover** push notifications with country-based throttling
+- 🔗 **Generic webhook** — POST JSON to any URL on every attack event
+- 📊 **Prometheus `/metrics`** endpoint with Basic Auth
+- 🔄 **Log rotation** — built-in, size-based, no external tools required
+- 🔇 **`LOG_DISABLED`** — disable all file logging while keeping notifications active
+- 🐳 **Multi-stage Docker build** — final image ~15 MB (Go 1.25 / Alpine 3.21)
 
 ---
 
 ## Build Status
-[![Automated Build](https://img.shields.io/docker/cloud/automated/andreaskasper/http-honeypot.svg)](https://hub.docker.com/r/andreaskasper/http-honeypot)  
-[![Build Status](https://img.shields.io/docker/cloud/build/andreaskasper/http-honeypot.svg)](https://hub.docker.com/r/andreaskasper/http-honeypot)  
+
+[![Automated Build](https://img.shields.io/docker/cloud/automated/andreaskasper/http-honeypot.svg)](https://hub.docker.com/r/andreaskasper/http-honeypot)
+[![Docker Pulls](https://img.shields.io/docker/pulls/andreaskasper/http-honeypot.svg)](https://hub.docker.com/r/andreaskasper/http-honeypot)
 ![Image Size](https://img.shields.io/docker/image-size/andreaskasper/http-honeypot/latest)
+[![GitHub Issues](https://img.shields.io/github/issues/andreaskasper/http-honeypot.svg)](https://github.com/andreaskasper/http-honeypot/issues)
 
 ---
 
-## Issues and Languages
-[![GitHub Issues](https://img.shields.io/github/issues/andreaskasper/http-honeypot.svg)](https://github.com/andreaskasper/http-honeypot/issues)  
-![Top Language](https://img.shields.io/github/languages/top/andreaskasper/http-honeypot.svg)
-
----
-
-## Docker Pull Stats
-![Docker Pulls](https://img.shields.io/docker/pulls/andreaskasper/http-honeypot.svg)
-
----
-
-## Demo
-[![Play with Docker](https://raw.githubusercontent.com/play-with-docker/stacks/cff22438cb4195ace27f9b15784bbb497047afa7/assets/images/button.png)](http://play-with-docker.com/?stack=https://raw.githubusercontent.com/andreaskasper/http-honeypot/main/stack.yml)
-
----
-
-## Getting Started
-### Quick Start
-Run the honeypot using Docker with the following command:
+## Quick Start
 
 ```sh
-$ docker run -p 8080:80 andreaskasper/http-honeypot
+docker run -p 80:80 andreaskasper/http-honeypot
 ```
 
-#### Getting help
+Or with docker-compose (recommended):
 
+```sh
+cp .env.example .env
+# edit .env with your values
+docker-compose up -d
+```
 
-### Environment Parameters
-| Parameter               | Default           | Description                                                                  |
-| ----------------------- |:-----------------:|:---------------------------------------------------------------------------- |
-| METRICS_PASSWORD        | admin             | Username for your prometheus metrics                                         |
-| METRICS_REALM           | Prometheus Server | Realm Name of your Prometheus Metrics                                        |
-| METRICS_USER            | password          | Password for your prometheus metrics                                         |
-| NAME                    |                   | Name of the Honeypot if you run more than one :-)                            |
-| PUSHOVER_APP            |                   | The app token of your Pushover app                                           |
-| PUSHOVER_NOTIFY_COUNTRY |                   | Enter the country-code of the country you wanna monitor (Example US, DE,...) |
-| PUSHOVER_RECIPIENT      |                   | The user token of your Pushover account, which should receive notifications  |
+---
 
+## Environment Variables
 
+| Variable | Default | Description |
+|---|---|---|
+| `NAME` | _(empty)_ | Instance name — included in all notifications (useful for multi-honeypot setups) |
+| `HONEYPOT_PORT` | `80` | Host port mapping (docker-compose only) |
+| **Tar-pit** | | |
+| `TAR_PIT_MAX_SEC` | `20` | Max random delay per request in seconds (0 = disabled) |
+| **Rate limiting** | | |
+| `RATE_LIMIT_PER_MIN` | `1000` | Max requests per IP per minute (very high by default to capture maximum data) |
+| **Logging** | | |
+| `LOG_DISABLED` | `false` | Set `true` to disable all file logging (Pushover/webhooks still fire) |
+| `LOG_MAX_SIZE_MB` | `100` | Rotate `/var/log/honeypot.jsonl` when it exceeds this size in MB |
+| **Pushover** | | |
+| `PUSHOVER_APP` | _(empty)_ | Pushover application token |
+| `PUSHOVER_RECIPIENT` | _(empty)_ | Pushover user/group key |
+| `PUSHOVER_NOTIFY_COUNTRY` | _(empty)_ | ISO 3166-1 alpha-2 code — notify when a request comes from this country (throttled 1/hour) |
+| **Webhook** | | |
+| `WEBHOOK_URL` | _(empty)_ | HTTP POST endpoint for JSON attack events |
+| `WEBHOOK_SECRET` | _(empty)_ | Sent in `X-Honeypot-Secret` header for receiver verification |
+| **Prometheus metrics** | | |
+| `METRICS_USER` | `admin` | Username for `/metrics` Basic Auth |
+| `METRICS_PASSWORD` | `password` | Password for `/metrics` Basic Auth |
+| `METRICS_REALM` | `Prometheus Server` | HTTP Basic Auth realm name |
+| `METRICS_DISABLED` | `false` | Set `true` to disable the `/metrics` endpoint entirely |
 
-### Development Roadmap
-- ✅ Base Image: Create a test image for build process validation (Travis/Docker).
-- 🔄 Tests: Implement automated tests.
-- 🚧 Gnomes: (Placeholder for further development).
-- 💰 Profit: Reap the benefits of a secure and engaging honeypot!
+---
 
-### support the projects :hammer_and_wrench:
+## Webhook Payload
+
+Every attack fires a JSON POST to `WEBHOOK_URL`:
+
+```json
+{
+  "event": "attack",
+  "server": "my-honeypot",
+  "timestamp": "2025-02-12T14:32:00Z",
+  "ip": "1.2.3.4",
+  "method": "GET",
+  "host": "example.com",
+  "path": "/actuator/env",
+  "user_agent": "python-requests/2.31.0",
+  "is_attack": true,
+  "attack_tag": "spring-actuator-env",
+  "post_body": "",
+  "ipinfo": { "country": "CN", "city": "Beijing", "org": "AS4134" }
+}
+```
+
+The `attack_tag` field lets you build conditional webhook flows — e.g. route `log4shell` hits to a Slack alert channel while logging everything else quietly.
+
+---
+
+## Trap Coverage
+
+| Category | Tags |
+|---|---|
+| Spring Boot Actuator | `spring-actuator-health/env/beans/heapdump/shutdown` |
+| WordPress | `wp-login`, `wp-admin`, `xmlrpc`, `wp-wlwmanifest`, `wordpress-scan` |
+| Joomla | `joomla-admin` |
+| phpMyAdmin | `phpmyadmin-index`, `phpmyadmin-setup` |
+| Apache Tomcat | `tomcat-manager` |
+| Apache Solr | `apache-solr` |
+| Jenkins | `jenkins-script`, `jenkins-api` |
+| H2 / JBoss Console | `h2-console` |
+| Microsoft Exchange | `owa-login`, `exchange-ews`, `exchange-proxylogon`, `exchange-ecp` |
+| Fortinet / VPN | `fortinet-fgt`, `sonicwall-vpn`, `pulse-secure`, `cisco-asa-vpn` |
+| Kubernetes API | `k8s-pods`, `k8s-secrets` |
+| Docker API | `docker-api` |
+| Grafana | `grafana` |
+| Confluence | `confluence-rce` |
+| Liferay | `liferay-rce` |
+| AWS / GCP / DO Metadata | `aws-metadata`, `gcp-metadata`, `do-metadata` |
+| AWS Credentials | `aws-credentials` |
+| Git source leaks | `git-config`, `git-head` |
+| REST API IDOR | `rest-api-idor-users/accounts/admin/customers` |
+| Credential files | `env-file`, `htpasswd`, `aws-credentials` |
+| SSH keys | `ssh-key` |
+| Web shells | `webshell` |
+| Path traversal | `path-traversal-passwd` |
+| Config leaks | `spring-config-leak`, `docker-compose-leak` |
+| Database dumps | `backup-file` |
+| phpinfo | `phpinfo` |
+| FritzBox | `fritzbox` |
+| Apache server-status | `apache-server-status` |
+| Log4Shell (headers) | `log4shell` |
+| CGI scanning | `cgi-scan` |
+
+---
+
+## Support the Project
+
 [![donate via Patreon](https://img.shields.io/badge/Donate-Patreon-green.svg)](https://www.patreon.com/AndreasKasper)
 [![donate via PayPal](https://img.shields.io/badge/Donate-PayPal-green.svg)](https://www.paypal.me/AndreasKasper)
 [![donate via Ko-fi](https://img.shields.io/badge/Donate-Ko--fi-green.svg)](https://ko-fi.com/andreaskasper)
-[![donate via Bitcoin](https://img.shields.io/badge/Bitcoin-35pBJSdu7DJJPyX6Mnz57aQ68uL89yL7ga-brightgreen.png)](bitcoin:35pBJSdu7DJJPyX6Mnz57aQ68uL89yL7ga?label=github-http-honeypot)
 [![Sponsors](https://img.shields.io/github/sponsors/andreaskasper)](https://github.com/sponsors/andreaskasper)

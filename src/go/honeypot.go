@@ -24,9 +24,9 @@ import (
 	"github.com/gregdel/pushover"
 )
 
-/* ══════════════════════════════════════════════════════════════════════════════
+/* ═══════════════════════════════════════════════════════════════════════════
    GLOBAL STATE  (all accesses are thread-safe)
-══════════════════════════════════════════════════════════════════════════════ */
+═══════════════════════════════════════════════════════════════════════════ */
 
 var (
 	counterRequests        int64 // atomic
@@ -41,9 +41,9 @@ var (
 	logMu sync.Mutex
 )
 
-/* ══════════════════════════════════════════════════════════════════════════════
-   RATE LIMITER
-══════════════════════════════════════════════════════════════════════════════ */
+/* ═══════════════════════════════════════════════════════════════════════════
+   RATE LIMITER  —  per-IP sliding window, 1-minute buckets
+═══════════════════════════════════════════════════════════════════════════ */
 
 type rateLimiter struct {
 	mu      sync.Mutex
@@ -68,60 +68,66 @@ func (r *rateLimiter) allow(ip string) bool {
 	return r.counts[ip] <= r.limit
 }
 
-/* ══════════════════════════════════════════════════════════════════════════════
+/* ═══════════════════════════════════════════════════════════════════════════
    TYPES
-══════════════════════════════════════════════════════════════════════════════ */
+═══════════════════════════════════════════════════════════════════════════ */
 
 type HoneypotRequest struct {
-	http      *http.Request
-	timestamp time.Time
-	wait      time.Duration
-	ip        string
-	ipinfo    map[string]interface{}
-	cookie    string
-	postBody  string
-	isAttack  bool
-	attackTag string // e.g. "log4shell", "wp-login", "spring-actuator"
+	http       *http.Request
+	timestamp  time.Time
+	wait       time.Duration
+	ip         string
+	ipinfo     map[string]interface{}
+	cookie     string
+	postBody   string
+	apiKeyUsed string // captured from X-Api-Key / Authorization headers
+	isAttack   bool
+	attackTag  string
 }
 
 // LogEntry is the structured JSON line written per request.
 type LogEntry struct {
-	Timestamp string                 `json:"timestamp"`
-	IP        string                 `json:"ip"`
-	WaitSec   float64                `json:"wait_sec"`
-	Method    string                 `json:"method"`
-	Host      string                 `json:"host"`
-	Path      string                 `json:"path"`
-	UserAgent string                 `json:"user_agent"`
-	Cookie    string                 `json:"cookie"`
-	IsAttack  bool                   `json:"is_attack"`
-	AttackTag string                 `json:"attack_tag,omitempty"`
-	PostBody  string                 `json:"post_body,omitempty"`
-	IPInfo    map[string]interface{} `json:"ipinfo,omitempty"`
+	Timestamp  string                 `json:"timestamp"`
+	IP         string                 `json:"ip"`
+	WaitSec    float64                `json:"wait_sec"`
+	Method     string                 `json:"method"`
+	Host       string                 `json:"host"`
+	Path       string                 `json:"path"`
+	UserAgent  string                 `json:"user_agent"`
+	Cookie     string                 `json:"cookie"`
+	IsAttack   bool                   `json:"is_attack"`
+	AttackTag  string                 `json:"attack_tag,omitempty"`
+	PostBody   string                 `json:"post_body,omitempty"`
+	APIKeyUsed string                 `json:"api_key_used,omitempty"`
+	IPInfo     map[string]interface{} `json:"ipinfo,omitempty"`
 }
 
-/* ══════════════════════════════════════════════════════════════════════════════
+/* ═══════════════════════════════════════════════════════════════════════════
    MAIN
-══════════════════════════════════════════════════════════════════════════════ */
+═══════════════════════════════════════════════════════════════════════════ */
 
 func main() {
-	// Initialise rate limiter from environment
 	rl.limit = getenvInt("RATE_LIMIT_PER_MIN", 1000)
-	log.Printf("honeypot starting | rate_limit=%d/min | log_disabled=%s | tar_pit_max=%ds",
-		rl.limit, getenv("LOG_DISABLED", "false"), getenvInt("TAR_PIT_MAX_SEC", 20))
+	log.Printf("honeypot starting | rate_limit=%d/min | log_disabled=%s | tar_pit_max=%ds | metrics_disabled=%s",
+		rl.limit, getenv("LOG_DISABLED", "false"),
+		getenvInt("TAR_PIT_MAX_SEC", 20), getenv("METRICS_DISABLED", "false"))
 
 	http.HandleFunc("/", handler)
 	log.Fatal(http.ListenAndServe(":80", nil))
 }
 
-/* ══════════════════════════════════════════════════════════════════════════════
-   HANDLER
-══════════════════════════════════════════════════════════════════════════════ */
+/* ═══════════════════════════════════════════════════════════════════════════
+   MAIN HANDLER
+═══════════════════════════════════════════════════════════════════════════ */
 
 func handler(w http.ResponseWriter, r *http.Request) {
 
-	/* ── Prometheus metrics endpoint ───────────────────────────────────────── */
+	/* ── Prometheus metrics ───────────────────────────────────────────────── */
 	if r.URL.Path == "/metrics" {
+		if strings.EqualFold(getenv("METRICS_DISABLED", "false"), "true") {
+			http.Error(w, "Not found.", 404)
+			return
+		}
 		if !basicAuth(w, r) {
 			return
 		}
@@ -137,7 +143,7 @@ func handler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	/* ── Build request context ─────────────────────────────────────────────── */
+	/* ── Build request context ────────────────────────────────────────────── */
 	info := HoneypotRequest{
 		http:      r,
 		timestamp: time.Now(),
@@ -149,25 +155,28 @@ func handler(w http.ResponseWriter, r *http.Request) {
 	atomic.AddInt64(&statsDurationWaitMS, info.wait.Milliseconds())
 	log.Printf("%s  %s  %s  %s", info.timestamp.Format("2006-01-02 15:04:05"), info.ip, r.Method, r.URL.Path)
 
-	/* ── Rate limiting ─────────────────────────────────────────────────────── */
+	/* ── Rate limiting ────────────────────────────────────────────────────── */
 	if !rl.allow(info.ip) {
 		w.WriteHeader(http.StatusTooManyRequests)
 		return
 	}
 
-	/* ── IP info lookup (non-fatal) ────────────────────────────────────────── */
+	/* ── IP info lookup (non-fatal) ───────────────────────────────────────── */
 	var ipErr error
 	info.ipinfo, ipErr = ipinfo(info.ip)
 	if ipErr != nil {
 		log.Printf("ipinfo lookup failed for %s: %v", info.ip, ipErr)
 	}
 
-	/* ── Log4Shell detection in headers ───────────────────────────────────── */
+	/* ── Capture API keys / Bearer tokens ────────────────────────────────── */
+	info.apiKeyUsed = captureAPIKey(r)
+
+	/* ── Log4Shell detection in headers ──────────────────────────────────── */
 	if detectLog4Shell(r) {
 		info.attackTag = "log4shell"
 	}
 
-	/* ── Pushover country notification (throttled to once/hour) ───────────── */
+	/* ── Pushover country notification (throttled to once/hour) ──────────── */
 	notifyCountry := getenv("PUSHOVER_NOTIFY_COUNTRY", "")
 	if notifyCountry != "" && info.ipinfo != nil && info.ipinfo["country"] == notifyCountry {
 		notifyMu.Lock()
@@ -182,7 +191,7 @@ func handler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	/* ── Cookie: read existing or mint new ────────────────────────────────── */
+	/* ── Cookie: read existing or mint new ───────────────────────────────── */
 	info.cookie = getHoneypotCookie(r)
 	if info.cookie == "" {
 		info.cookie = getMD5Hash(info.timestamp.String())
@@ -199,7 +208,7 @@ func handler(w http.ResponseWriter, r *http.Request) {
 		SameSite: http.SameSiteDefaultMode,
 	})
 
-	/* ── Read POST/PUT body (capped at 8 KB) ───────────────────────────────── */
+	/* ── Read POST/PUT body (capped at 8 KB) ─────────────────────────────── */
 	if r.Method == http.MethodPost || r.Method == http.MethodPut {
 		body, err := io.ReadAll(io.LimitReader(r.Body, 8*1024))
 		if err == nil {
@@ -207,20 +216,20 @@ func handler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	/* ── Tar-pit delay ─────────────────────────────────────────────────────── */
+	/* ── Tar-pit delay ────────────────────────────────────────────────────── */
 	time.Sleep(info.wait)
 
-	/* ── Always log after handler returns ─────────────────────────────────── */
+	/* ── Always log after handler returns ────────────────────────────────── */
 	defer func() { go logJSON(info) }()
 
-	/* ══════════════════════════════════════════════════════════════════════════
+	/* ══════════════════════════════════════════════════════════════════════
 	   ROUTING
-	══════════════════════════════════════════════════════════════════════════ */
+	══════════════════════════════════════════════════════════════════════ */
 
 	path := r.URL.Path
 	pathLower := strings.ToLower(path)
 
-	/* ── Safe paths ────────────────────────────────────────────────────────── */
+	/* ── Safe / informational paths ───────────────────────────────────────── */
 	switch path {
 	case "/":
 		serveFile(w, "assets/nginx_default.html")
@@ -239,7 +248,7 @@ func handler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	/* ── Spring Boot Actuators ─────────────────────────────────────────────── */
+	/* ── Spring Boot Actuators ───────────────────────────────────────────── */
 	switch path {
 	case "/actuator/health":
 		markAttack(&info, "spring-actuator-health")
@@ -258,19 +267,17 @@ func handler(w http.ResponseWriter, r *http.Request) {
 		return
 	case "/actuator/heapdump":
 		markAttack(&info, "spring-actuator-heapdump")
-		w.WriteHeader(200)
 		w.Header().Set("Content-Type", "application/octet-stream")
-		w.Write([]byte("JAVA PROFILE 1.0.2\x00\x00\x00")) // fake heap dump header
+		w.Write([]byte("JAVA PROFILE 1.0.2\x00\x00\x00"))
 		return
 	case "/actuator/shutdown":
 		markAttack(&info, "spring-actuator-shutdown")
 		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(200)
 		fmt.Fprint(w, `{"message":"Shutting down, bye..."}`)
 		return
 	}
 
-	/* ── WordPress ─────────────────────────────────────────────────────────── */
+	/* ── WordPress ───────────────────────────────────────────────────────── */
 	switch path {
 	case "/wp-login.php":
 		markAttack(&info, "wp-login")
@@ -294,7 +301,7 @@ func handler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	/* ── Joomla ─────────────────────────────────────────────────────────────── */
+	/* ── Joomla ──────────────────────────────────────────────────────────── */
 	if path == "/administrator/" || path == "/administrator" {
 		markAttack(&info, "joomla-admin")
 		w.Header().Set("Content-Type", "text/html")
@@ -302,7 +309,7 @@ func handler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	/* ── Apache Tomcat Manager ─────────────────────────────────────────────── */
+	/* ── Apache Tomcat Manager ───────────────────────────────────────────── */
 	if path == "/manager/html" || path == "/host-manager/html" {
 		markAttack(&info, "tomcat-manager")
 		w.Header().Set("WWW-Authenticate", `Basic realm="Tomcat Manager Application"`)
@@ -311,7 +318,7 @@ func handler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	/* ── Apache Solr ───────────────────────────────────────────────────────── */
+	/* ── Apache Solr ─────────────────────────────────────────────────────── */
 	if strings.HasPrefix(path, "/solr") {
 		markAttack(&info, "apache-solr")
 		w.Header().Set("Content-Type", "application/json")
@@ -319,7 +326,7 @@ func handler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	/* ── Jenkins ───────────────────────────────────────────────────────────── */
+	/* ── Jenkins ─────────────────────────────────────────────────────────── */
 	switch path {
 	case "/script":
 		markAttack(&info, "jenkins-script")
@@ -333,7 +340,7 @@ func handler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	/* ── H2 / JBoss Console ────────────────────────────────────────────────── */
+	/* ── H2 / JBoss Console ──────────────────────────────────────────────── */
 	if path == "/console" || path == "/console/" || path == "/h2-console" {
 		markAttack(&info, "h2-console")
 		w.Header().Set("Content-Type", "text/html")
@@ -341,7 +348,7 @@ func handler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	/* ── Kubernetes API ────────────────────────────────────────────────────── */
+	/* ── Kubernetes API ──────────────────────────────────────────────────── */
 	switch path {
 	case "/api/v1/pods", "/api/v1/namespaces/default/pods":
 		markAttack(&info, "k8s-pods")
@@ -355,7 +362,7 @@ func handler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	/* ── Docker API ────────────────────────────────────────────────────────── */
+	/* ── Docker API ──────────────────────────────────────────────────────── */
 	if strings.HasPrefix(path, "/v1.") && strings.Contains(path, "/containers") {
 		markAttack(&info, "docker-api")
 		w.Header().Set("Content-Type", "application/json")
@@ -363,7 +370,7 @@ func handler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	/* ── Microsoft Exchange ────────────────────────────────────────────────── */
+	/* ── Microsoft Exchange ──────────────────────────────────────────────── */
 	switch path {
 	case "/owa/", "/owa":
 		w.Header().Set("Location", "/owa/auth/logon.aspx")
@@ -378,7 +385,7 @@ func handler(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/html")
 		fmt.Fprint(w, `<html><body>Exchange Web Services are working.</body></html>`)
 		return
-	case "/autodiscover/autodiscover.json": // CVE-2021-26855 ProxyLogon probe
+	case "/autodiscover/autodiscover.json":
 		markAttack(&info, "exchange-proxylogon")
 		w.Header().Set("Content-Type", "application/json")
 		fmt.Fprint(w, `{"Protocol":"Autodiscoverv1","Url":"https://autodiscover.contoso.com/autodiscover/autodiscover.xml"}`)
@@ -390,7 +397,7 @@ func handler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	/* ── Fortinet / VPN Appliances ─────────────────────────────────────────── */
+	/* ── Fortinet / VPN Appliances ───────────────────────────────────────── */
 	switch {
 	case strings.HasPrefix(path, "/remote/fgt_lang"):
 		markAttack(&info, "fortinet-fgt")
@@ -414,16 +421,16 @@ func handler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	/* ── Grafana ────────────────────────────────────────────────────────────── */
+	/* ── Grafana ─────────────────────────────────────────────────────────── */
 	if strings.HasPrefix(path, "/grafana") || path == "/api/snapshots" || path == "/api/ds/query" {
 		markAttack(&info, "grafana")
 		w.Header().Set("Content-Type", "application/json")
-		fmt.Fprint(w, `{"message":"Unauthorized","traceID":"00000000000000000000000000000000"}`)
 		w.WriteHeader(401)
+		fmt.Fprint(w, `{"message":"Unauthorized","traceID":"00000000000000000000000000000000"}`)
 		return
 	}
 
-	/* ── Confluence ─────────────────────────────────────────────────────────── */
+	/* ── Confluence ──────────────────────────────────────────────────────── */
 	if strings.Contains(pathLower, "/pages/createpage") || strings.Contains(pathLower, "/rest/tinymce") {
 		markAttack(&info, "confluence-rce")
 		w.Header().Set("Content-Type", "application/json")
@@ -431,7 +438,7 @@ func handler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	/* ── Liferay (CVE-2020-7961) ───────────────────────────────────────────── */
+	/* ── Liferay (CVE-2020-7961) ─────────────────────────────────────────── */
 	if strings.HasPrefix(path, "/api/jsonws") {
 		markAttack(&info, "liferay-rce")
 		w.Header().Set("Content-Type", "application/json")
@@ -439,7 +446,7 @@ func handler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	/* ── phpMyAdmin ─────────────────────────────────────────────────────────── */
+	/* ── phpMyAdmin ──────────────────────────────────────────────────────── */
 	pmaIndex, _ := regexp.MatchString(`/(pma|pmd|[_-]*php[_-]*myadmin|myadmin)/(index\.php)?$`, pathLower)
 	pmaSetup, _ := regexp.MatchString(`/(pma|pmd|[_-]*php[_-]*myadmin|myadmin)/scripts/setup\.php$`, pathLower)
 	switch {
@@ -453,7 +460,7 @@ func handler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	/* ── phpunit RCE (CVE-2017-9841) ───────────────────────────────────────── */
+	/* ── phpunit RCE (CVE-2017-9841) ─────────────────────────────────────── */
 	if strings.Contains(pathLower, "phpunit") && strings.Contains(pathLower, "eval-stdin") {
 		markAttack(&info, "phpunit-rce")
 		w.Header().Set("Content-Type", "text/plain")
@@ -461,7 +468,7 @@ func handler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	/* ── AWS / Cloud Metadata ───────────────────────────────────────────────── */
+	/* ── AWS / GCP / DigitalOcean Metadata ───────────────────────────────── */
 	switch {
 	case strings.HasPrefix(path, "/latest/meta-data"):
 		markAttack(&info, "aws-metadata")
@@ -480,7 +487,13 @@ func handler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	/* ── Old/legacy admin paths ────────────────────────────────────────────── */
+	/* ── Dynamic REST API IDOR trap ─────────────────────────────────────── */
+	// Catches scanners probing /api/v*/users/1, /api/v*/accounts/42, etc.
+	if restAPITrap(w, r, &info) {
+		return
+	}
+
+	/* ── Old/legacy admin paths ──────────────────────────────────────────── */
 	switch path {
 	case "/admin/config.php", "/admin//config.php":
 		markAttack(&info, "admin-config")
@@ -502,39 +515,33 @@ func handler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	/* ── Suffix-based traps ─────────────────────────────────────────────────── */
+	/* ── Suffix-based traps ──────────────────────────────────────────────── */
 	switch {
 	case strings.HasSuffix(path, "/.env") || path == "/.env":
 		markAttack(&info, "env-file")
 		w.Header().Set("Content-Type", "text/plain")
 		fmt.Fprint(w, "APP_ENV=production\nDB_HOST=prod-db.internal\nDB_PASSWORD=Sup3rS3cr3t!\nAWS_ACCESS_KEY_ID=AKIAIOSFODNN7EXAMPLE\nAWS_SECRET_ACCESS_KEY=wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY\nSTRIPE_SECRET_KEY=sk_live_examplekey123456\n")
 		return
-
 	case strings.HasSuffix(path, "/.htpasswd"):
 		markAttack(&info, "htpasswd")
 		w.Header().Set("Content-Type", "text/plain")
 		fmt.Fprint(w, "admindemo:$1$YFru^g}j$iY7qJ0IEAcUGO5wJdUTbO1\n")
 		return
-
 	case strings.HasSuffix(path, "/id_rsa") || strings.HasSuffix(path, "/id_ecdsa"):
 		markAttack(&info, "ssh-key")
 		w.Header().Set("Content-Type", "text/plain")
 		serveFile(w, "assets/fake_id_rsa")
 		return
-
 	case strings.HasSuffix(pathLower, "swagger.json") || strings.HasSuffix(pathLower, "swagger.yaml") || strings.HasSuffix(pathLower, "openapi.json"):
 		markAttack(&info, "swagger")
 		w.Header().Set("Content-Type", "application/json")
 		serveFile(w, "assets/swagger.json")
 		return
-
 	case strings.HasSuffix(path, "/owa/auth/x.js"):
 		markAttack(&info, "owa-xjs")
 		w.Header().Set("Content-Type", "text/javascript")
 		fmt.Fprint(w, `while (true) { alert("The bee makes sum sum!"); }`)
 		return
-
-	// Git source exposure
 	case strings.HasSuffix(path, "/.git/config"):
 		markAttack(&info, "git-config")
 		w.Header().Set("Content-Type", "text/plain")
@@ -545,50 +552,36 @@ func handler(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/plain")
 		fmt.Fprint(w, "ref: refs/heads/main\n")
 		return
-
-	// AWS credentials
 	case strings.HasSuffix(pathLower, ".aws/credentials") || strings.HasSuffix(pathLower, ".aws/config"):
 		markAttack(&info, "aws-credentials")
 		w.Header().Set("Content-Type", "text/plain")
 		fmt.Fprint(w, "[default]\naws_access_key_id = AKIAIOSFODNN7EXAMPLE\naws_secret_access_key = wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY\nregion = eu-west-1\n")
 		return
-
-	// Backup/DB dumps
 	case strings.HasSuffix(pathLower, ".sql") || strings.HasSuffix(pathLower, "backup.zip") || strings.HasSuffix(pathLower, "backup.tar.gz"):
 		markAttack(&info, "backup-file")
 		w.Header().Set("Content-Type", "text/plain")
 		fmt.Fprint(w, "-- MySQL dump 10.13  Distrib 8.0.32\n-- Host: localhost  Database: proddb\nCREATE TABLE users (id int, email varchar(255), password_hash varchar(255));\n")
 		return
-
-	// PHP info pages
 	case strings.HasSuffix(pathLower, "phpinfo.php") || strings.HasSuffix(pathLower, "info.php"):
 		markAttack(&info, "phpinfo")
 		w.Header().Set("Content-Type", "text/html")
 		fmt.Fprint(w, `<html><body><h1>PHP Version 8.2.7</h1><table><tr><td>System</td><td>Linux prod-web 5.15.0</td></tr><tr><td>Document Root</td><td>/var/www/html</td></tr></table></body></html>`)
 		return
-
-	// Config file leaks
 	case strings.HasSuffix(pathLower, "application.yml") || strings.HasSuffix(pathLower, "application.yaml") || strings.HasSuffix(pathLower, "application.properties"):
 		markAttack(&info, "spring-config-leak")
 		w.Header().Set("Content-Type", "text/plain")
 		fmt.Fprint(w, "spring.datasource.url=jdbc:postgresql://prod-db:5432/appdb\nspring.datasource.username=appuser\nspring.datasource.password=ProdPass2024!\n")
 		return
-
-	// docker-compose.yml
 	case strings.HasSuffix(pathLower, "docker-compose.yml") || strings.HasSuffix(pathLower, "docker-compose.yaml"):
 		markAttack(&info, "docker-compose-leak")
 		w.Header().Set("Content-Type", "text/plain")
 		fmt.Fprint(w, "version: '3.8'\nservices:\n  db:\n    image: postgres:15\n    environment:\n      POSTGRES_PASSWORD: prod_secret_123\n")
 		return
-
-	// Apache server-status
 	case path == "/server-status" || strings.HasSuffix(path, "/server-status"):
 		markAttack(&info, "apache-server-status")
 		w.Header().Set("Content-Type", "text/html")
 		fmt.Fprint(w, `<html><body><h1>Apache Server Status</h1><p>Server Version: Apache/2.4.57</p><p>Total accesses: 823519</p></body></html>`)
 		return
-
-	// Web shells
 	case strings.HasSuffix(pathLower, "shell.php") || strings.HasSuffix(pathLower, "cmd.php") ||
 		strings.HasSuffix(pathLower, "c99.php") || strings.HasSuffix(pathLower, "r57.php") ||
 		strings.HasSuffix(pathLower, "webshell.php"):
@@ -596,8 +589,6 @@ func handler(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/html")
 		fmt.Fprint(w, `<html><body><form method="GET"><input name="cmd" placeholder="command"/><input type="submit" value="exec"/></form></body></html>`)
 		return
-
-	// Path traversal to /etc/passwd
 	case strings.Contains(path, "/etc/passwd") || strings.Contains(path, "../etc/passwd"):
 		markAttack(&info, "path-traversal-passwd")
 		w.Header().Set("Content-Type", "text/plain")
@@ -605,13 +596,12 @@ func handler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	/* ── Prefix-based traps ─────────────────────────────────────────────────── */
+	/* ── Prefix-based traps ──────────────────────────────────────────────── */
 	switch {
 	case strings.HasPrefix(pathLower, "/wp-content") || strings.HasPrefix(pathLower, "/wp-json"):
 		markAttack(&info, "wordpress-scan")
 		http.Error(w, "Not Found", 404)
 		return
-
 	case strings.HasPrefix(path, "/cgi-bin/"):
 		markAttack(&info, "cgi-scan")
 		w.Header().Set("Content-Type", "text/plain")
@@ -619,14 +609,38 @@ func handler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	/* ── Default 404 ────────────────────────────────────────────────────────── */
+	/* ── Default 404 ─────────────────────────────────────────────────────── */
 	atomic.AddInt64(&counterRequests404, 1)
 	http.Error(w, "File not found.", 404)
 }
 
-/* ══════════════════════════════════════════════════════════════════════════════
+/* ═══════════════════════════════════════════════════════════════════════════
+   TRAP FUNCTIONS
+═══════════════════════════════════════════════════════════════════════════ */
+
+// restAPITrap catches IDOR-style scanners probing /api/v*/users/{id},
+// /api/v*/accounts/{id}, etc. It captures any supplied API key in the headers.
+func restAPITrap(w http.ResponseWriter, r *http.Request, info *HoneypotRequest) bool {
+	apiRe := regexp.MustCompile(`^/api/v\d+/(users|accounts|admin|customers|employees)/(\d+)`)
+	m := apiRe.FindStringSubmatch(r.URL.Path)
+	if m == nil {
+		return false
+	}
+	resource := m[1]
+	id := m[2]
+	markAttack(info, "rest-api-idor-"+resource)
+	w.Header().Set("Content-Type", "application/json")
+	fmt.Fprintf(w,
+		`{"id":%s,"email":"user%s@contoso.internal","role":"user",`+
+			`"password_hash":"$2b$12$FakeHashForHoneypotXXXXXXXXXXXXXXX",`+
+			`"api_key":"sk_live_honeypot%s","created_at":"2024-01-15T10:30:00Z"}`,
+		id, id, id)
+	return true
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
    HELPERS
-══════════════════════════════════════════════════════════════════════════════ */
+═══════════════════════════════════════════════════════════════════════════ */
 
 // markAttack flags the request, increments counters, and fires async side effects.
 func markAttack(info *HoneypotRequest, tag string) {
@@ -639,20 +653,31 @@ func markAttack(info *HoneypotRequest, tag string) {
 	go sendWebhook(*info, "attack")
 }
 
-// detectLog4Shell scans request headers and the URL for ${jndi: injection strings.
+// detectLog4Shell scans all request headers and the query string for JNDI injection.
 func detectLog4Shell(r *http.Request) bool {
 	payload := "${jndi:"
 	for _, vals := range r.Header {
 		for _, v := range vals {
-			if strings.Contains(strings.ToLower(v), strings.ToLower(payload)) {
+			if strings.Contains(strings.ToLower(v), payload) {
 				return true
 			}
 		}
 	}
-	if strings.Contains(r.URL.RawQuery, payload) {
-		return true
+	return strings.Contains(r.URL.RawQuery, payload)
+}
+
+// captureAPIKey returns any API key or Bearer token present in the request.
+func captureAPIKey(r *http.Request) string {
+	if key := r.Header.Get("X-Api-Key"); key != "" {
+		return key
 	}
-	return false
+	if auth := r.Header.Get("Authorization"); strings.HasPrefix(auth, "Bearer ") {
+		return strings.TrimPrefix(auth, "Bearer ")
+	}
+	if auth := r.Header.Get("Authorization"); strings.HasPrefix(auth, "Token ") {
+		return strings.TrimPrefix(auth, "Token ")
+	}
+	return ""
 }
 
 // randomDelay returns a cryptographically random duration in [0, TAR_PIT_MAX_SEC].
@@ -663,19 +688,19 @@ func randomDelay() time.Duration {
 	}
 	n, err := rand.Int(rand.Reader, big.NewInt(maxSec*1000))
 	if err != nil {
-		return 5 * time.Second // safe fallback
+		return 5 * time.Second
 	}
 	return time.Duration(n.Int64()) * time.Millisecond
 }
 
 // wpLoginHTML returns a minimal but convincing fake WordPress login page.
 func wpLoginHTML() string {
-	return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><title>Log In &lsaquo; WordPress</title></head><body class="login"><div id="login"><h1><a href="https://wordpress.org/">WordPress</a></h1><form name="loginform" id="loginform" action="/wp-login.php" method="post"><p><label for="user_login">Username or Email Address<input type="text" name="log" id="user_login" class="input" size="20" autocapitalize="none" autocomplete="username"/></label></p><p><label for="user_pass">Password<input type="password" name="pwd" id="user_pass" class="input" size="20" autocomplete="current-password"/></label></p><input type="hidden" name="redirect_to" value="/wp-admin/"/><input type="hidden" name="testcookie" value="1"/><p class="submit"><input type="submit" name="wp-submit" id="wp-submit" class="button button-primary button-large" value="Log In"/></p></form></div></body></html>`
+	return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><title>Log In &lsaquo; WordPress</title></head><body class="login"><div id="login"><h1><a href="https://wordpress.org/">WordPress</a></h1><form name="loginform" id="loginform" action="/wp-login.php" method="post"><p><label for="user_login">Username or Email Address<br/><input type="text" name="log" id="user_login" class="input" size="20" autocapitalize="none" autocomplete="username"/></label></p><p><label for="user_pass">Password<br/><input type="password" name="pwd" id="user_pass" class="input" size="20" autocomplete="current-password"/></label></p><input type="hidden" name="redirect_to" value="/wp-admin/"/><input type="hidden" name="testcookie" value="1"/><p class="submit"><input type="submit" name="wp-submit" id="wp-submit" class="button button-primary button-large" value="Log In"/></p></form></div></body></html>`
 }
 
-/* ══════════════════════════════════════════════════════════════════════════════
+/* ═══════════════════════════════════════════════════════════════════════════
    LOGGING
-══════════════════════════════════════════════════════════════════════════════ */
+═══════════════════════════════════════════════════════════════════════════ */
 
 // logJSON writes a structured JSON line to /var/log/honeypot.jsonl.
 // Skipped entirely when LOG_DISABLED=true.
@@ -685,18 +710,19 @@ func logJSON(info HoneypotRequest) {
 	}
 
 	entry := LogEntry{
-		Timestamp: info.timestamp.Format(time.RFC3339),
-		IP:        info.ip,
-		WaitSec:   float64(info.wait.Milliseconds()) / 1000,
-		Method:    info.http.Method,
-		Host:      info.http.Host,
-		Path:      info.http.URL.Path,
-		UserAgent: info.http.Header.Get("User-Agent"),
-		Cookie:    info.cookie,
-		IsAttack:  info.isAttack,
-		AttackTag: info.attackTag,
-		PostBody:  info.postBody,
-		IPInfo:    info.ipinfo,
+		Timestamp:  info.timestamp.Format(time.RFC3339),
+		IP:         info.ip,
+		WaitSec:    float64(info.wait.Milliseconds()) / 1000,
+		Method:     info.http.Method,
+		Host:       info.http.Host,
+		Path:       info.http.URL.Path,
+		UserAgent:  info.http.Header.Get("User-Agent"),
+		Cookie:     info.cookie,
+		IsAttack:   info.isAttack,
+		AttackTag:  info.attackTag,
+		PostBody:   info.postBody,
+		APIKeyUsed: info.apiKeyUsed,
+		IPInfo:     info.ipinfo,
 	}
 
 	data, err := json.Marshal(entry)
@@ -704,12 +730,10 @@ func logJSON(info HoneypotRequest) {
 		log.Printf("logJSON marshal error: %v", err)
 		return
 	}
-
 	appendToLogFile("/var/log/honeypot.jsonl", append(data, '\n'))
 }
 
 // logIPBlacklist appends the attacker IP to the legacy plaintext blacklist.
-// Skipped when LOG_DISABLED=true.
 func logIPBlacklist(info HoneypotRequest) {
 	if strings.EqualFold(getenv("LOG_DISABLED", "false"), "true") {
 		return
@@ -718,13 +742,12 @@ func logIPBlacklist(info HoneypotRequest) {
 }
 
 // appendToLogFile handles rotation and appends data to a log file.
-// Rotation: when the file exceeds LOG_MAX_SIZE_MB it is renamed with a timestamp.
 func appendToLogFile(path string, data []byte) {
 	logMu.Lock()
 	defer logMu.Unlock()
 
 	maxBytes := int64(getenvInt("LOG_MAX_SIZE_MB", 100)) * 1024 * 1024
-	if info, err := os.Stat(path); err == nil && info.Size() >= maxBytes {
+	if fi, err := os.Stat(path); err == nil && fi.Size() >= maxBytes {
 		rotated := path + "." + time.Now().Format("20060102-150405")
 		if err := os.Rename(path, rotated); err != nil {
 			log.Printf("log rotate error for %s: %v", path, err)
@@ -740,9 +763,9 @@ func appendToLogFile(path string, data []byte) {
 	f.Write(data)
 }
 
-/* ══════════════════════════════════════════════════════════════════════════════
+/* ═══════════════════════════════════════════════════════════════════════════
    NOTIFICATIONS
-══════════════════════════════════════════════════════════════════════════════ */
+═══════════════════════════════════════════════════════════════════════════ */
 
 func sendPushover(info HoneypotRequest) {
 	app := getenv("PUSHOVER_APP", "")
@@ -783,17 +806,18 @@ func sendWebhook(info HoneypotRequest, event string) {
 		return
 	}
 	payload := map[string]interface{}{
-		"event":      event,
-		"server":     getenv("NAME", ""),
-		"timestamp":  info.timestamp.Format(time.RFC3339),
-		"ip":         info.ip,
-		"method":     info.http.Method,
-		"host":       info.http.Host,
-		"path":       info.http.URL.Path,
-		"user_agent": info.http.Header.Get("User-Agent"),
-		"is_attack":  info.isAttack,
-		"attack_tag": info.attackTag,
-		"ipinfo":     info.ipinfo,
+		"event":        event,
+		"server":       getenv("NAME", ""),
+		"timestamp":    info.timestamp.Format(time.RFC3339),
+		"ip":           info.ip,
+		"method":       info.http.Method,
+		"host":         info.http.Host,
+		"path":         info.http.URL.Path,
+		"user_agent":   info.http.Header.Get("User-Agent"),
+		"is_attack":    info.isAttack,
+		"attack_tag":   info.attackTag,
+		"api_key_used": info.apiKeyUsed,
+		"ipinfo":       info.ipinfo,
 	}
 	if info.postBody != "" {
 		payload["post_body"] = info.postBody
@@ -819,12 +843,12 @@ func sendWebhook(info HoneypotRequest, event string) {
 		return
 	}
 	defer resp.Body.Close()
-	log.Printf("webhook fired event=%s status=%d", event, resp.StatusCode)
+	log.Printf("webhook fired event=%s attack_tag=%s status=%d", event, info.attackTag, resp.StatusCode)
 }
 
-/* ══════════════════════════════════════════════════════════════════════════════
+/* ═══════════════════════════════════════════════════════════════════════════
    UTILITY
-══════════════════════════════════════════════════════════════════════════════ */
+═══════════════════════════════════════════════════════════════════════════ */
 
 func serveFile(w http.ResponseWriter, filename string) {
 	f, err := os.Open(filename)
@@ -908,8 +932,7 @@ func getMD5Hash(text string) string {
 	return hex.EncodeToString(h.Sum(nil))
 }
 
-// getIPAddress extracts the real client IP, checking Cloudflare → HAProxy → Traefik
-// headers before falling back to RemoteAddr.
+// getIPAddress extracts the real client IP, respecting Cloudflare → HAProxy → Traefik headers.
 func getIPAddress(r *http.Request) string {
 	if v := r.Header.Get("CF-Connecting-IP"); v != "" {
 		return v

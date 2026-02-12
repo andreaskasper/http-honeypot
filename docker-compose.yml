@@ -17,6 +17,16 @@ services:
       # Honeypot identity
       NAME: ${NAME:-my-honeypot}
 
+      # Tar-pit delay
+      TAR_PIT_MAX_SEC: ${TAR_PIT_MAX_SEC:-20}
+
+      # Rate limiting (high default to collect maximum data)
+      RATE_LIMIT_PER_MIN: ${RATE_LIMIT_PER_MIN:-1000}
+
+      # Logging
+      LOG_DISABLED: ${LOG_DISABLED:-false}
+      LOG_MAX_SIZE_MB: ${LOG_MAX_SIZE_MB:-100}
+
       # Pushover notifications
       PUSHOVER_APP: ${PUSHOVER_APP:-}
       PUSHOVER_RECIPIENT: ${PUSHOVER_RECIPIENT:-}
@@ -26,27 +36,16 @@ services:
       WEBHOOK_URL: ${WEBHOOK_URL:-}
       WEBHOOK_SECRET: ${WEBHOOK_SECRET:-}
 
-      # Prometheus metrics basic auth
+      # Prometheus metrics  —  change BOTH before exposing to the internet!
       METRICS_USER: ${METRICS_USER:-admin}
-      METRICS_PASSWORD: ${METRICS_PASSWORD:-changeme}
+      METRICS_PASSWORD: ${METRICS_PASSWORD:-password}
       METRICS_REALM: ${METRICS_REALM:-Prometheus Server}
-
-      # Tar-pit delay: max random wait in seconds (default 20)
-      TAR_PIT_MAX_SEC: ${TAR_PIT_MAX_SEC:-20}
-
-      # Rate limit per IP per minute. Set very high to still collect data.
-      RATE_LIMIT_PER_MIN: ${RATE_LIMIT_PER_MIN:-1000}
-
-      # Set to "true" to disable ALL file logging (pushover/webhooks still fire)
-      LOG_DISABLED: ${LOG_DISABLED:-false}
-
-      # Rotate log files when they exceed this size in MB (default 100)
-      LOG_MAX_SIZE_MB: ${LOG_MAX_SIZE_MB:-100}
+      METRICS_DISABLED: ${METRICS_DISABLED:-false}
 
     volumes:
       - honeypot_logs:/var/log
 
-    # ── Traefik labels (enable if running behind Traefik) ──────────────────
+    # ── Traefik labels (enable if running behind Traefik) ───────────────────
     # labels:
     #   - "traefik.enable=true"
     #   - "traefik.http.routers.honeypot.rule=Host(`honeypot.example.com`)"
