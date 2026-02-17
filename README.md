@@ -107,6 +107,8 @@ Report comment format:
 HTTP honeypot [my-honeypot]: spring-actuator-env | GET /actuator/env | UA: python-requests/2.31.0
 ```
 
+[![donate via Patreon](https://www.abuseipdb.com/contributor/252827.svg)](https://www.abuseipdb.com/user/252827)
+
 ---
 
 ## Webhook Payload
