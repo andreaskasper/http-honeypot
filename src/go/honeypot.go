@@ -375,7 +375,7 @@ func handler(w http.ResponseWriter, r *http.Request) {
 	══════════════════════════════════════════════════════════════════════ */
 
 	// If a honeytoken was the only trigger, still respond normally so the attacker
-	// doesn’t know they were detected.
+	// doesn't know they were detected.
 
 	path := r.URL.Path
 	pathLower := strings.ToLower(path)
@@ -813,7 +813,7 @@ func restAPITrap(w http.ResponseWriter, r *http.Request, info *HoneypotRequest) 
 // markAttack flags the request, increments counters, and fires async side effects.
 func markAttack(info *HoneypotRequest, tag string) {
 	if info.isHoneytokenUse {
-		// Already handled as honeytoken; don’t double-count.
+		// Already handled as honeytoken; don't double-count.
 		return
 	}
 	info.isAttack = true
@@ -1108,7 +1108,28 @@ func ipinfo(ip string) (map[string]interface{}, error) {
 	if err := json.Unmarshal(body, &results); err != nil {
 		return nil, err
 	}
-	return results["result"], nil
+	
+	result := results["result"]
+	
+	// If API didn't provide a hostname, try DNS PTR lookup
+	if result != nil {
+		hostnameVal, hasHostname := result["hostname"]
+		hostname, _ := hostnameVal.(string)
+		
+		if !hasHostname || hostname == "" || hostname == ip {
+			// Try PTR lookup
+			names, err := net.LookupAddr(ip)
+			if err == nil && len(names) > 0 {
+				ptrHost := strings.TrimSuffix(names[0], ".")
+				// Only use PTR if it's not just the IP address
+				if ptrHost != ip && ptrHost != "" {
+					result["hostname"] = ptrHost
+				}
+			}
+		}
+	}
+	
+	return result, nil
 }
 
 func getHoneypotCookie(r *http.Request) string {
