@@ -12,6 +12,15 @@ class Honeypot {
     
     $ipinfo = json_decode(@file_get_contents("https://api.goo1.de/ipinfo.scan.json?ip=".urlencode($remote_ip)), true);
 
+    // If API didn't provide a hostname, try DNS PTR lookup
+    if (isset($ipinfo["result"]) && (empty($ipinfo["result"]["hostname"]) || $ipinfo["result"]["hostname"] === $remote_ip)) {
+      $ptr_host = @gethostbyaddr($remote_ip);
+      // Only use PTR if it's not just the IP address
+      if ($ptr_host && $ptr_host !== $remote_ip) {
+        $ipinfo["result"]["hostname"] = $ptr_host;
+      }
+    }
+
     @file_put_contents("/var/log/honeypot.test.log", "--------------".PHP_EOL.var_export($_SERVER, true).PHP_EOL."=== ipinfo ===".var_export($ipinfo["result"] ?? null, true).PHP_EOL."=== GET ===".var_export($_GET, true).PHP_EOL."=== POST ===".PHP_EOL.var_export($_POST, true).PHP_EOL, FILE_APPEND);
 
     $row  = date("Y-m-d H:i:s").';';
