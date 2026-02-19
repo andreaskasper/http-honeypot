@@ -7,7 +7,6 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"io"
-	"log"
 	"math/big"
 	"net"
 	"net/http"
