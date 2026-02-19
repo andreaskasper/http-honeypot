@@ -305,16 +305,3 @@ func sendNewURLWebhook(info HoneypotRequest) *WebhookResponse {
 
 	return &webhookResp
 }
-
-// getenvInt is a helper to get an integer env var with a default
-func getenvInt(key string, defaultVal int) int {
-	val := getenv(key, "")
-	if val == "" {
-		return defaultVal
-	}
-	intVal, err := strconv.Atoi(val)
-	if err != nil {
-		return defaultVal
-	}
-	return intVal
-}
