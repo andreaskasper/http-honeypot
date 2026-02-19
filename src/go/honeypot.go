@@ -3,6 +3,7 @@ package main
 import (
 	"crypto/md5"
 	"crypto/rand"
+	"crypto/subtle"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -151,26 +152,6 @@ func main() {
    HELPERS
 ═══════════════════════════════════════════════════════════════════════════ */
 
-// detectHoneytokenInRequest scans all request headers (and the already-captured
-// apiKey) for a hp_live_ token.  Returns the token if found, empty string otherwise.
-func detectHoneytokenInRequest(r *http.Request, capturedKey string) string {
-	if isHoneytoken(capturedKey) {
-		return capturedKey
-	}
-	for _, vals := range r.Header {
-		for _, v := range vals {
-			// A header might contain the token inline (e.g. "Bearer hp_live_...")
-			for _, word := range strings.Fields(v) {
-				word = strings.Trim(word, `"',;`)
-				if isHoneytoken(word) {
-					return word
-				}
-			}
-		}
-	}
-	return ""
-}
-
 // detectLog4Shell scans all request headers and the query string for JNDI injection.
 func detectLog4Shell(r *http.Request) bool {
 	payload := "${jndi:"
@@ -301,25 +282,14 @@ func basicAuth(w http.ResponseWriter, r *http.Request) bool {
 	realm := getenv("METRICS_REALM", "Prometheus Server")
 	user, pass, ok := r.BasicAuth()
 	if !ok ||
-		!constantTimeCompare([]byte(user), []byte(admin)) ||
-		!constantTimeCompare([]byte(pass), []byte(password)) {
+		subtle.ConstantTimeCompare([]byte(user), []byte(admin)) != 1 ||
+		subtle.ConstantTimeCompare([]byte(pass), []byte(password)) != 1 {
 		w.Header().Set("WWW-Authenticate", `Basic realm="`+realm+`"`)
 		w.WriteHeader(401)
 		w.Write([]byte("Unauthorized.\n"))
 		return false
 	}
 	return true
-}
-
-func constantTimeCompare(a, b []byte) bool {
-	if len(a) != len(b) {
-		return false
-	}
-	var result byte
-	for i := 0; i < len(a); i++ {
-		result |= a[i] ^ b[i]
-	}
-	return result == 0
 }
 
 func getenv(key, fallback string) string {
