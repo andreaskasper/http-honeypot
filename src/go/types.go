@@ -36,3 +36,12 @@ type LogEntry struct {
 	IsHoneytokenUse bool                   `json:"is_honeytoken_use,omitempty"`
 	IPInfo          map[string]interface{} `json:"ipinfo,omitempty"`
 }
+
+// WebhookResponse represents the response from WEBHOOK_NEW_URL
+type WebhookResponse struct {
+	Status      int               `json:"status"`
+	Body        string            `json:"body"`
+	ContentType string            `json:"content_type"`
+	Headers     map[string]string `json:"headers"`
+	Redirect    string            `json:"redirect"` // Shorthand for 301/302
+}
