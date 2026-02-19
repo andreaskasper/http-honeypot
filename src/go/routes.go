@@ -405,6 +405,43 @@ func handleRoutes(w http.ResponseWriter, r *http.Request, info *HoneypotRequest)
 		return
 	}
 
+	/* ══════════════════════════════════════════════════════════════════════
+	   WEBHOOK_NEW_URL - Call for unknown/new URLs
+	══════════════════════════════════════════════════════════════════════ */
+	if !info.isAttack && getenv("WEBHOOK_NEW_URL", "") != "" {
+		webhookResp := sendNewURLWebhook(*info)
+		if webhookResp != nil {
+			// Set custom headers
+			if webhookResp.Headers != nil {
+				for k, v := range webhookResp.Headers {
+					w.Header().Set(k, v)
+				}
+			}
+
+			// Set content type
+			if webhookResp.ContentType != "" {
+				w.Header().Set("Content-Type", webhookResp.ContentType)
+			}
+
+			// Write status code
+			w.WriteHeader(webhookResp.Status)
+
+			// Write body
+			if webhookResp.Body != "" {
+				fmt.Fprint(w, webhookResp.Body)
+			}
+
+			return
+		}
+	}
+
+	/* ── Default fallback ─────────────────────────────────────────────── */
+	if strings.EqualFold(getenv("DEFAULT_REDIRECT", "false"), "true") {
+		w.Header().Set("Location", "/")
+		w.WriteHeader(301)
+		return
+	}
+
 	/* ── Default 404 ──────────────────────────────────────────────────── */
 	atomic.AddInt64(&counterRequests404, 1)
 	http.Error(w, "File not found.", 404)
