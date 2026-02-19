@@ -12,7 +12,7 @@ import (
 
 func handler(w http.ResponseWriter, r *http.Request) {
 
-	/* ── Prometheus metrics ─────────────────────────────────────────────── */
+	/* ── Prometheus metrics ───────────────────────────────────────────── */
 	if r.URL.Path == "/metrics" {
 		if strings.EqualFold(getenv("METRICS_DISABLED", "false"), "true") {
 			http.Error(w, "Not found.", 404)
@@ -32,6 +32,18 @@ func handler(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintf(w, "# TYPE http_honeytokens_used counter\nhttp_honeytokens_used{} %d\n", atomic.LoadInt64(&counterHoneytokensUsed))
 		fmt.Fprintf(w, "# HELP http_duration_ms Cumulative tar-pit delay ms\n")
 		fmt.Fprintf(w, "# TYPE http_duration_ms counter\nhttp_duration_ms{} %d\n", atomic.LoadInt64(&statsDurationWaitMS))
+		
+		// WEBHOOK_NEW_URL metrics
+		fmt.Fprintf(w, "# HELP webhook_new_url_calls Total calls to WEBHOOK_NEW_URL\n")
+		fmt.Fprintf(w, "# TYPE webhook_new_url_calls counter\nwebhook_new_url_calls{} %d\n", atomic.LoadInt64(&counterWebhookNewURLCalls))
+		fmt.Fprintf(w, "# HELP webhook_new_url_timeout_ms Cumulative webhook timeout duration\n")
+		fmt.Fprintf(w, "# TYPE webhook_new_url_timeout_ms counter\nwebhook_new_url_timeout_ms{} %d\n", atomic.LoadInt64(&counterWebhookNewURLTimeoutMS))
+		fmt.Fprintf(w, "# HELP webhook_new_url_cache_hits Cache hits for WEBHOOK_NEW_URL\n")
+		fmt.Fprintf(w, "# TYPE webhook_new_url_cache_hits counter\nwebhook_new_url_cache_hits{} %d\n", atomic.LoadInt64(&counterWebhookNewURLCacheHits))
+		fmt.Fprintf(w, "# HELP webhook_new_url_cache_miss Cache misses for WEBHOOK_NEW_URL\n")
+		fmt.Fprintf(w, "# TYPE webhook_new_url_cache_miss counter\nwebhook_new_url_cache_miss{} %d\n", atomic.LoadInt64(&counterWebhookNewURLCacheMiss))
+		fmt.Fprintf(w, "# HELP webhook_new_url_custom_responses Custom responses served from webhook\n")
+		fmt.Fprintf(w, "# TYPE webhook_new_url_custom_responses counter\nwebhook_new_url_custom_responses{} %d\n", atomic.LoadInt64(&counterWebhookNewURLCustomResp))
 		return
 	}
 
