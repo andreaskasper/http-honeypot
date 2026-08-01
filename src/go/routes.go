@@ -276,6 +276,13 @@ func handleRoutes(w http.ResponseWriter, r *http.Request, info *HoneypotRequest)
 		return
 	}
 
+	/* ── 2026 attack surfaces: SharePoint / ColdFusion / Langflow ─────── */
+	// Placed after the exact-match blocks above so /api/v1/pods and friends
+	// keep their own tags; each helper returns true only if it answered.
+	if sharePointTrap(w, r, info) || coldFusionTrap(w, r, info) || langflowTrap(w, r, info) {
+		return
+	}
+
 	/* ── Dynamic REST API IDOR trap ──────────────────────────────────── */
 	if restAPITrap(w, r, info) {
 		return
