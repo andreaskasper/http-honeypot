@@ -30,7 +30,7 @@ The honeypot listens on port 80 and pretends to be a real vulnerable web server.
 
 | Feature | Details |
 |---|---|
-| 🎣 **40+ attack traps** | Spring, WordPress, Exchange, Fortinet, K8s, Docker, AWS/GCP metadata, Git leaks, web shells, and more |
+| 🎣 **65+ attack traps** | Spring, WordPress, Exchange, SharePoint, ColdFusion, Fortinet, K8s, Docker, AWS/GCP metadata, Langflow, Git leaks, web shells, and more |
 | 🐢 **Tar-pit** | `crypto/rand` delay per request; prevents timing fingerprinting |
 | 🏷️ **attack_tag** | Every matched trap produces a machine-readable tag for webhook routing |
 | 🔍 **Log4Shell** | Scans all request headers + query string for `${jndi:` payloads |

@@ -1,6 +1,6 @@
 # 🍯 HTTP Honeypot
 
-A high-interaction HTTP honeypot written in **Go**. It simulates **40+ real attack surfaces**, tarpits every request with a cryptographically random delay, embeds **honeytokens** in fake responses to detect credential reuse, and automatically reports attackers to **AbuseIPDB**.
+A high-interaction HTTP honeypot written in **Go**. It simulates **65+ real attack surfaces**, tarpits every request with a cryptographically random delay, embeds **honeytokens** in fake responses to detect credential reuse, and automatically reports attackers to **AbuseIPDB**.
 
 📖 **Full documentation:** https://andreaskasper.github.io/http-honeypot/
 
@@ -8,7 +8,7 @@ A high-interaction HTTP honeypot written in **Go**. It simulates **40+ real atta
 
 ## Features
 
-- 🎣 **40+ attack traps** — Spring Actuator, WordPress, Exchange/OWA, Fortinet, Kubernetes, Docker API, AWS/GCP metadata, Git leaks, phpMyAdmin, Jenkins, Confluence, web shells, and more
+- 🎣 **65+ attack traps** — Spring Actuator, WordPress, Exchange/OWA, SharePoint, ColdFusion, Fortinet, Kubernetes, Docker API, AWS/GCP metadata, Git leaks, phpMyAdmin, Jenkins, Confluence, Langflow, web shells, and more
 - 🍯 **Honeytokens** — IP-specific fake API keys (`hp_live_*`) embedded in responses; detected and flagged with a `honeytoken_used` webhook event when an attacker reuses them
 - 🚀 **Dynamic response webhook** — Return custom content for unknown URLs via `WEBHOOK_NEW_URL` with caching
 - 🚫 **AbuseIPDB integration** — automatically reports attacking IPs with configurable per-IP cooldown
@@ -178,6 +178,7 @@ Tokens appear in:
 - `/.env` → `STRIPE_SECRET_KEY`
 - `/.aws/credentials` → `aws_secret_access_key`
 - `/api/v*/users/{id}` → `api_key` field
+- `/api/v1/api_key` (Langflow) → `api_keys[].api_key`
 
 If an attacker submits a token back to **any** endpoint (as a header, POST body, or query parameter), the honeypot:
 1. Detects it in `detectHoneytokenInRequest()`
@@ -195,7 +196,7 @@ This means you get alerted when a credential stolen from your honeypot is actual
 When `ABUSEIPDB_KEY` is set, every attack triggers an async report to [AbuseIPDB](https://www.abuseipdb.com/):
 
 - **Category 21** (Web App Attack) for most traps
-- **Category 14 + 21** (Port Scan + Web App Attack) for scanner-style traps
+- **Category 14 + 21** (Port Scan + Web App Attack) for scanner-style traps (any `attack_tag` containing `scan`, plus `cgi-scan`)
 - **Cooldown**: the same IP is not reported more than once per `ABUSEIPDB_SLEEP` seconds (default: 24 h)
 - Fully async — never blocks the response
 - Non-fatal — errors are logged but don't affect honeypot operation
@@ -238,24 +239,32 @@ For honeytoken reuse events, `event` is `"honeytoken_used"` and `is_honeytoken_u
 | Category | Tags |
 |---|---|
 | Spring Boot Actuator | `spring-actuator-health/env/beans/heapdump/shutdown` |
-| WordPress | `wp-login`, `wp-admin`, `xmlrpc`, `wordpress-scan` |
+| WordPress | `wp-login`, `wp-admin`, `xmlrpc`, `wp-wlwmanifest`, `wordpress-scan` |
 | Joomla | `joomla-admin` |
 | phpMyAdmin | `phpmyadmin-index`, `phpmyadmin-setup` |
 | Apache Tomcat | `tomcat-manager` |
+| Apache Solr | `apache-solr` |
 | Jenkins | `jenkins-script`, `jenkins-api` |
 | H2 / JBoss | `h2-console` |
-| Microsoft Exchange | `owa-login`, `exchange-ews`, `exchange-proxylogon`, `exchange-ecp` |
+| Microsoft Exchange | `owa-login`, `exchange-ews`, `exchange-proxylogon`, `exchange-ecp`, `owa-xjs` |
+| Microsoft SharePoint | `sharepoint-toolpane`, `sharepoint-scan` |
+| Adobe ColdFusion | `coldfusion-admin`, `coldfusion-scan` |
 | Fortinet / VPN | `fortinet-fgt`, `sonicwall-vpn`, `pulse-secure`, `cisco-asa-vpn` |
 | Kubernetes | `k8s-pods`, `k8s-secrets` |
 | Docker API | `docker-api` |
 | Grafana | `grafana` |
 | Confluence | `confluence-rce` |
 | Liferay | `liferay-rce` |
+| PHP | `phpunit-rce`, `phpinfo` |
+| Apache | `apache-server-status` |
+| Routers / legacy | `fritzbox`, `admin-config`, `bag2`, `config-getuser` |
 | Cloud Metadata | `aws-metadata`, `gcp-metadata`, `do-metadata` |
+| AI / LLM tooling 🍯 | `langflow-rce`, `langflow-apikey`, `langflow-scan` |
 | REST API IDOR 🍯 | `rest-api-idor-users/accounts/admin/customers/employees` |
 | Credential leaks 🍯 | `env-file`, `aws-credentials`, `htpasswd`, `ssh-key` |
 | Git leaks | `git-config`, `git-head` |
 | Config leaks | `spring-config-leak`, `docker-compose-leak` |
+| API specs | `swagger` |
 | Backup files | `backup-file` |
 | Webshells | `webshell` |
 | Path traversal | `path-traversal-passwd` |

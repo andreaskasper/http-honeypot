@@ -7,6 +7,53 @@ nav_order: 9
 # Other Service Traps
 {: .no_toc }
 
+## Microsoft SharePoint ("ToolShell")
+
+**Paths:** `/_layouts/15/ToolPane.aspx`, `/_layouts/16/ToolPane.aspx`  
+**Tag:** `sharepoint-toolpane`
+
+The ToolShell exploit chain against on-premises SharePoint Server — **CVE-2025-53770** and the 2026 follow-ups (**CVE-2026-56164**, **CVE-2026-58644**), all on the CISA KEV catalog. Attackers POST to `ToolPane.aspx` with `DisplayMode=Edit` and a `Referer` spoofed to `/_layouts/SignOut.aspx`. The honeypot answers with an inert Web Part maintenance page and the `MicrosoftSharePointTeamServices` header a real server would send.
+
+**Paths:** `/_vti_bin/*`, `/_api/web*`, other `/_layouts/*`  
+**Tag:** `sharepoint-scan`
+
+The broad reconnaissance sweep that precedes and follows the exploit. Returns a fake `401` `UnauthorizedAccessException` in SharePoint's OData error format.
+
+---
+
+## Adobe ColdFusion
+
+**Path prefix:** `/CFIDE/administrator*`  
+**Tag:** `coldfusion-admin`
+
+Serves a fake ColdFusion Administrator login form. **CVE-2023-26360** and the **CVE-2026-48282** path traversal (CVSS 10.0, added to CISA KEV in July 2026 days after the patch) both make this one of the most-probed admin panels on the internet.
+
+**Paths:** `/CFIDE/*`, `/cf_scripts/*`, `*.cfm`, `*.cfc`  
+**Tag:** `coldfusion-scan`
+
+Returns ColdFusion's characteristic "Error Occurred While Processing Request" page including a version banner.
+
+---
+
+## Langflow / AI agent platforms 🍯
+
+**Path:** `/api/v1/validate/code`  
+**Tag:** `langflow-rce`
+
+**CVE-2025-3248** — unauthenticated code execution in Langflow's code validation endpoint, still actively scanned by botnets. Returns a fake "no errors" validation result.
+
+**Paths:** `/api/v1/api_key`, `/api/v1/variables`  
+**Tag:** `langflow-apikey`
+
+Returns a fake API key listing containing an **IP-specific honeytoken** (`hp_live_*`). If that key ever comes back to the honeypot, you get a `honeytoken_used` event.
+
+**Paths:** `/api/v1/flows*`, `/api/v1/store*`, `/api/v1/version`  
+**Tag:** `langflow-scan`
+
+Fingerprinting and the cross-tenant IDOR **CVE-2026-55255** — the first AI agent platform vulnerability ever added to CISA KEV.
+
+---
+
 ## Apache Solr
 
 **Path prefix:** `/solr/*`  
@@ -75,6 +122,15 @@ Paths associated with **CVE-2023-22527** (OGNL injection, CVSS 10.0). Returns a 
 
 ---
 
+## phpinfo
+
+**Paths:** `**phpinfo.php`, `**info.php`  
+**Tag:** `phpinfo`
+
+Returns a stripped-down fake `phpinfo()` page with a PHP version and document root. A real one leaks the full server configuration.
+
+---
+
 ## Apache server-status
 
 **Path:** `/server-status`  
@@ -90,6 +146,15 @@ Returns a fake Apache mod_status page. A real exposed server-status page reveals
 **Tag:** `fritzbox`
 
 The AVM FritzBox router login endpoint. Returns a fake `SessionInfo` XML response with a challenge token.
+
+---
+
+## Legacy admin paths
+
+**Paths:** `/admin/config.php`, `/bag2`, `/config/getuser`  
+**Tags:** `admin-config`, `bag2`, `config-getuser`
+
+Long-tail paths that old scanner kits still probe. `/config/getuser` returns a fake shadow-style hash.
 
 ---
 
