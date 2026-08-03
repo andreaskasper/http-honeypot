@@ -106,3 +106,89 @@ func langflowTrap(w http.ResponseWriter, r *http.Request, info *HoneypotRequest)
 	}
 	return false
 }
+
+// citrixNetScalerTrap covers Citrix NetScaler ADC / Gateway, one of the most
+// heavily scanned edge appliances on the internet. The doAuthentication.do arm
+// answers the CitrixBleed 2 probe (CVE-2025-5777 — a pre-auth memory
+// disclosure triggered by sending the `login` parameter without a value, which
+// makes a real appliance echo uninitialised stack memory inside
+// <InitialValue>) with an inert, fabricated "leak" that carries an
+// IP-specific honeytoken. Nothing here reads or exposes real memory.
+func citrixNetScalerTrap(w http.ResponseWriter, r *http.Request, info *HoneypotRequest) bool {
+	p := strings.ToLower(r.URL.Path)
+	switch {
+	case strings.HasSuffix(p, "/doauthentication.do"):
+		markAttack(info, "citrix-netscaler-bleed")
+		token := honeytoken(info.ip, "citrix-netscaler-bleed")
+		w.Header().Set("Content-Type", "text/xml; charset=utf-8")
+		fmt.Fprintf(w,
+			`<?xml version="1.0" encoding="UTF-8"?>`+
+				`<AuthenticateResponse xmlns="http://citrix.com/authentication/response/1">`+
+				`<Status>success</Status><Result>more-info-required</Result><StateContext></StateContext>`+
+				`<AuthenticationRequirements><PostBack>/nf/auth/doAuthentication.do</PostBack>`+
+				`<CancelPostBack>/nf/auth/doLogoff.do</CancelPostBack><CancelButtonText>Cancel</CancelButtonText>`+
+				`<Requirements><Requirement><Credential><ID>login</ID><SaveID>ExplicitForms-Username</SaveID>`+
+				`<Type>username</Type></Credential><Label><Text>User name</Text><Type>plain</Type></Label>`+
+				`<Input><AssistiveText>Please supply either domain\username or user@fully.qualified.domain.</AssistiveText>`+
+				`<Text><Secret>false</Secret><ReadOnly>false</ReadOnly>`+
+				`<InitialValue>NSC_AAAC %s CORP\svc-vpn-bind ns_true 0x1f4</InitialValue>`+
+				`<Constraint>.+</Constraint></Text></Input></Requirement></Requirements>`+
+				`</AuthenticationRequirements></AuthenticateResponse>`, token)
+		return true
+	case p == "/vpn/index.html", p == "/vpn/tmindex.html", p == "/cgi/login",
+		strings.HasPrefix(p, "/logon/logonpoint/"):
+		markAttack(info, "citrix-netscaler-logon")
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		w.Header().Set("X-Citrix-Application", "Receiver for Web")
+		fmt.Fprint(w, `<!DOCTYPE html><html><head><title>Citrix Gateway</title></head><body><div id="loginContainer"><h2>Please log on</h2><form method="post" action="/p/u/doAuthentication.do"><input type="text" name="login" autocomplete="off"/><input type="password" name="passwd" autocomplete="off"/><input type="submit" value="Log On"/></form><p>NetScaler Gateway 13.1-49.15</p></div></body></html>`)
+		return true
+	case strings.HasPrefix(p, "/vpn/"), strings.HasPrefix(p, "/vpns/"),
+		strings.HasPrefix(p, "/nsconfig/"), strings.HasPrefix(p, "/citrix/"),
+		strings.HasPrefix(p, "/logon/"):
+		markAttack(info, "citrix-netscaler-scan")
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		w.WriteHeader(403)
+		fmt.Fprint(w, `<html><head><title>Forbidden</title></head><body><h1>HTTP/1.1 Forbidden</h1><p>NetScaler Gateway</p></body></html>`)
+		return true
+	}
+	return false
+}
+
+// globalProtectTrap covers Palo Alto Networks PAN-OS GlobalProtect portals,
+// the single most-probed VPN login surface tracked by GreyNoise (millions of
+// sessions against /global-protect/login.esp) and the target of the actively
+// exploited authentication bypass CVE-2026-0257. The getconfig arm embeds an
+// IP-specific honeytoken in the fake portal auth-cookie.
+func globalProtectTrap(w http.ResponseWriter, r *http.Request, info *HoneypotRequest) bool {
+	p := strings.ToLower(r.URL.Path)
+	switch {
+	case p == "/global-protect/prelogin.esp", p == "/ssl-vpn/prelogin.esp":
+		markAttack(info, "panos-globalprotect-prelogin")
+		w.Header().Set("Content-Type", "application/xml; charset=UTF-8")
+		fmt.Fprint(w, `<?xml version="1.0" encoding="UTF-8" ?><prelogin-response><status>Success</status><ccusername></ccusername><autosubmit>false</autosubmit><msg></msg><newmsg></newmsg><authentication-message>Enter login credentials</authentication-message><username-label>Username</username-label><password-label>Password</password-label><panos-version>1</panos-version><saml-request></saml-request><saml-default-browser></saml-default-browser><region>DE</region></prelogin-response>`)
+		return true
+	case p == "/global-protect/getconfig.esp", p == "/ssl-vpn/getconfig.esp":
+		markAttack(info, "panos-globalprotect-config")
+		token := honeytoken(info.ip, "panos-globalprotect-config")
+		w.Header().Set("Content-Type", "application/xml; charset=UTF-8")
+		fmt.Fprintf(w,
+			`<?xml version="1.0" encoding="UTF-8" ?><policy><portal-name>corp-gp-portal</portal-name>`+
+				`<portal-config-version>4100</portal-config-version><version>6.1.2</version>`+
+				`<client-role>global-protect-full</client-role><portal-userauthcookie>%s</portal-userauthcookie>`+
+				`<gateways><external><list><entry name="vpn-fra.corp.internal"><priority>1</priority>`+
+				`<description>Frankfurt</description></entry></list></external></gateways></policy>`, token)
+		return true
+	case p == "/global-protect/login.esp", p == "/global-protect/portal/login.esp", p == "/ssl-vpn/login.esp":
+		markAttack(info, "panos-globalprotect-login")
+		w.Header().Set("Content-Type", "text/html; charset=UTF-8")
+		fmt.Fprint(w, `<!DOCTYPE html><html><head><title>GlobalProtect Portal</title></head><body><div id="container"><h1>GlobalProtect Portal</h1><form id="loginForm" method="post" action="/global-protect/login.esp"><input type="text" name="user" autocomplete="off"/><input type="password" name="passwd" autocomplete="off"/><input type="hidden" name="prot" value="https:"/><input type="hidden" name="server" value=""/><input type="submit" value="Log In"/></form></div></body></html>`)
+		return true
+	case strings.HasPrefix(p, "/global-protect/"), strings.HasPrefix(p, "/ssl-vpn/"):
+		markAttack(info, "panos-globalprotect-scan")
+		w.Header().Set("Content-Type", "text/html; charset=UTF-8")
+		w.WriteHeader(404)
+		fmt.Fprint(w, `<html><head><title>Not Found</title></head><body><h1>Not Found</h1><p>The requested URL was not found on this server.</p></body></html>`)
+		return true
+	}
+	return false
+}
