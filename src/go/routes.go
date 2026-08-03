@@ -98,7 +98,7 @@ func handleRoutes(w http.ResponseWriter, r *http.Request, info *HoneypotRequest)
 		return
 	}
 
-	/* ── Apache Tomcat Manager ────────────────────────────────────────── */
+	/* ─�� Apache Tomcat Manager ────────────────────────────────────────── */
 	if path == "/manager/html" || path == "/host-manager/html" {
 		markAttack(info, "tomcat-manager")
 		w.Header().Set("WWW-Authenticate", `Basic realm="Tomcat Manager Application"`)
@@ -396,6 +396,13 @@ func handleRoutes(w http.ResponseWriter, r *http.Request, info *HoneypotRequest)
 		markAttack(info, "path-traversal-passwd")
 		w.Header().Set("Content-Type", "text/plain")
 		fmt.Fprint(w, "root:x:0:0:root:/root:/bin/bash\nwww-data:x:33:33:www-data:/var/www:/usr/sbin/nologin\ndeploy:x:1001:1001::/home/deploy:/bin/bash\n")
+		return
+	}
+
+	/* ── Edge VPN appliances: Citrix NetScaler / PAN-OS GlobalProtect ── */
+	// Placed after the traversal/exact-match blocks so those keep their tags;
+	// each helper returns true only if it answered the request.
+	if citrixNetScalerTrap(w, r, info) || globalProtectTrap(w, r, info) {
 		return
 	}
 
