@@ -1,6 +1,6 @@
 # 🍯 HTTP Honeypot
 
-A high-interaction HTTP honeypot written in **Go**. It simulates **65+ real attack surfaces**, tarpits every request with a cryptographically random delay, embeds **honeytokens** in fake responses to detect credential reuse, and automatically reports attackers to **AbuseIPDB**.
+A high-interaction HTTP honeypot written in **Go**. It simulates **75+ real attack surfaces**, tarpits every request with a cryptographically random delay, embeds **honeytokens** in fake responses to detect credential reuse, and automatically reports attackers to **AbuseIPDB**.
 
 📖 **Full documentation:** https://andreaskasper.github.io/http-honeypot/
 
@@ -8,7 +8,7 @@ A high-interaction HTTP honeypot written in **Go**. It simulates **65+ real atta
 
 ## Features
 
-- 🎣 **65+ attack traps** — Spring Actuator, WordPress, Exchange/OWA, SharePoint, ColdFusion, Fortinet, Kubernetes, Docker API, AWS/GCP metadata, Git leaks, phpMyAdmin, Jenkins, Confluence, Langflow, web shells, and more
+- 🎣 **75+ attack traps** — Spring Actuator, WordPress, Exchange/OWA, SharePoint, ColdFusion, Citrix NetScaler, PAN-OS GlobalProtect, Fortinet, Kubernetes, Docker API, AWS/GCP metadata, Git leaks, phpMyAdmin, Jenkins, Confluence, Langflow, web shells, and more
 - 🍯 **Honeytokens** — IP-specific fake API keys (`hp_live_*`) embedded in responses; detected and flagged with a `honeytoken_used` webhook event when an attacker reuses them
 - 🚀 **Dynamic response webhook** — Return custom content for unknown URLs via `WEBHOOK_NEW_URL` with caching
 - 🚫 **AbuseIPDB integration** — automatically reports attacking IPs with configurable per-IP cooldown
@@ -179,8 +179,10 @@ Tokens appear in:
 - `/.aws/credentials` → `aws_secret_access_key`
 - `/api/v*/users/{id}` → `api_key` field
 - `/api/v1/api_key` (Langflow) → `api_keys[].api_key`
+- `/p/u/doAuthentication.do` (CitrixBleed 2) → fake leaked memory in `<InitialValue>`
+- `/global-protect/getconfig.esp` (PAN-OS) → `<portal-userauthcookie>`
 
-If an attacker submits a token back to **any** endpoint (as a header, POST body, or query parameter), the honeypot:
+If an attacker submits a token back to **any** endpoint (as a header, cookie, query parameter, or POST body), the honeypot:
 1. Detects it in `detectHoneytokenInRequest()`
 2. Sets `attack_tag = "honeytoken-used"` and `is_honeytoken_use = true`
 3. Fires a `honeytoken_used` webhook event (separate from normal `attack` events)
@@ -250,6 +252,8 @@ For honeytoken reuse events, `event` is `"honeytoken_used"` and `is_honeytoken_u
 | Microsoft SharePoint | `sharepoint-toolpane`, `sharepoint-scan` |
 | Adobe ColdFusion | `coldfusion-admin`, `coldfusion-scan` |
 | Fortinet / VPN | `fortinet-fgt`, `sonicwall-vpn`, `pulse-secure`, `cisco-asa-vpn` |
+| Citrix NetScaler 🍯 | `citrix-netscaler-bleed`, `citrix-netscaler-logon`, `citrix-netscaler-scan` |
+| PAN-OS GlobalProtect 🍯 | `panos-globalprotect-login`, `panos-globalprotect-prelogin`, `panos-globalprotect-config`, `panos-globalprotect-scan` |
 | Kubernetes | `k8s-pods`, `k8s-secrets` |
 | Docker API | `docker-api` |
 | Grafana | `grafana` |
