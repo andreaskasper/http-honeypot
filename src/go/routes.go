@@ -98,7 +98,7 @@ func handleRoutes(w http.ResponseWriter, r *http.Request, info *HoneypotRequest)
 		return
 	}
 
-	/* ─�� Apache Tomcat Manager ────────────────────────────────────────── */
+	/* ── Apache Tomcat Manager ────────────────────────────────────────── */
 	if path == "/manager/html" || path == "/host-manager/html" {
 		markAttack(info, "tomcat-manager")
 		w.Header().Set("WWW-Authenticate", `Basic realm="Tomcat Manager Application"`)
