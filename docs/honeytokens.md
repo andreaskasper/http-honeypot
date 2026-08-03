@@ -52,8 +52,11 @@ The `hp_live_` prefix is recognizable at a glance. The 20-hex suffix is determin
 | `/.env` | `STRIPE_SECRET_KEY` | Stripe live key |
 | `/.aws/credentials` | `aws_secret_access_key` | AWS secret key |
 | `/api/v*/users/{id}` | `api_key` | REST API key |
+| `/api/v1/api_key` | `api_keys[].api_key` | Langflow API key |
+| `/p/u/doAuthentication.do` | `<InitialValue>` | NetScaler session material in fake leaked memory |
+| `/global-protect/getconfig.esp` | `<portal-userauthcookie>` | GlobalProtect portal auth cookie |
 
-All four mimic the format of real credentials that automated scanners and credential-harvesting tools look for specifically.
+They all mimic the format of real credentials that automated scanners and credential-harvesting tools look for specifically.
 
 ---
 
@@ -61,9 +64,12 @@ All four mimic the format of real credentials that automated scanners and creden
 
 The honeypot scans every incoming request for honeytoken reuse:
 
-1. **All request headers** — including `Authorization: Bearer hp_live_...`, `X-Api-Key: hp_live_...`, and any custom header
-2. **POST/PUT body** — scanned word-by-word after the standard 8 KB body read
-3. **Already-captured API key** — from `captureAPIKey()` which reads `X-Api-Key` and `Authorization`
+1. **All request headers** — including `Authorization: Bearer hp_live_...`, `X-Api-Key: hp_live_...`, `Cookie: NSC_AAAC=hp_live_...`, and any custom header
+2. **Query parameters** — e.g. `?api_key=hp_live_...`
+3. **POST/PUT body** — scanned after the standard 8 KB body read
+4. **Already-captured API key** — from `captureAPIKey()` which reads `X-Api-Key` and `Authorization`
+
+Header, cookie and query values are split on every delimiter that can surround a credential (whitespace, `=`, `&`, `;`, `,`, `:`, quotes, brackets), so a token pasted into a cookie or a JSON field is still found.
 
 Detection is prefix-based (`hp_live_`) plus exact length check (28 characters total), so false positives are essentially impossible.
 

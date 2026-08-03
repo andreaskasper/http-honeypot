@@ -44,3 +44,27 @@ The canonical path for Ivanti Connect Secure (formerly Pulse Secure). Returns a 
 **Tag:** `cisco-asa-vpn`
 
 The login path for Cisco Adaptive Security Appliance SSL VPN. Returns a fake Cisco ASA page. Associated with scanning for **CVE-2023-20269** (unauthenticated remote access VPN brute-force).
+
+---
+
+## Citrix NetScaler ADC / Gateway 🍯
+
+**Paths:** `/p/u/doAuthentication.do`, `/nf/auth/doAuthentication.do`, `/vpn/index.html`, `/vpn/tmindex.html`, `/cgi/login`, `/logon/LogonPoint/*`, and the `/vpn/`, `/vpns/`, `/nsconfig/`, `/citrix/`, `/logon/` prefixes  
+**Tags:** `citrix-netscaler-bleed`, `citrix-netscaler-logon`, `citrix-netscaler-scan`
+
+Citrix NetScaler is one of the most heavily scanned edge appliances on the internet.
+
+The `doAuthentication.do` arm answers the **CitrixBleed 2** probe (**CVE-2025-5777**). On a real appliance, sending the `login` parameter without a value leaves a variable uninitialised and the device echoes back leftover stack memory inside an `<InitialValue>` XML tag — which is how attackers harvest session tokens. The honeypot returns an `<InitialValue>` filled with **fabricated** memory-looking content that carries an IP-specific [honeytoken](../honeytokens), so a scanner that "leaks" a session token from this host and later tries to reuse it lights up a `honeytoken_used` event.
+
+The prefixes also cover the older **CVE-2019-19781** path-traversal probes (`/vpn/../vpns/cfg/smb.conf`) and generic Gateway fingerprinting.
+
+---
+
+## Palo Alto Networks PAN-OS GlobalProtect 🍯
+
+**Paths:** `/global-protect/login.esp`, `/global-protect/portal/login.esp`, `/global-protect/prelogin.esp`, `/global-protect/getconfig.esp`, and the same set under `/ssl-vpn/`  
+**Tags:** `panos-globalprotect-login`, `panos-globalprotect-prelogin`, `panos-globalprotect-config`, `panos-globalprotect-scan`
+
+`/global-protect/login.esp` is the single most-probed VPN login surface GreyNoise tracks — millions of sessions, dominated by credential-stuffing infrastructure. Probing typically starts with `prelogin.esp` (which a real portal answers unauthenticated, making it an ideal fingerprint) before moving on to login attempts.
+
+The `getconfig.esp` arm returns a fake portal configuration whose `<portal-userauthcookie>` is an IP-specific [honeytoken](../honeytokens) — the field an attacker exploiting an authentication bypass such as **CVE-2026-0257** would go looking for.
