@@ -25,20 +25,49 @@ func isHoneytoken(s string) bool {
 	return strings.HasPrefix(s, honeytokenPrefix) && len(s) == len(honeytokenPrefix)+20
 }
 
-// detectHoneytokenInRequest scans all request headers (and the already-captured
-// apiKey) for a hp_live_ token.  Returns the token if found, empty string otherwise.
+// isTokenSeparator reports whether a rune can sit next to a credential.
+// A stolen token comes back in many shapes — "Bearer hp_live_...", a cookie
+// value ("NSC_AAAC=hp_live_..."), a query parameter or a JSON field — so we
+// split on every delimiter that can surround one, not just whitespace.
+func isTokenSeparator(c rune) bool {
+	switch c {
+	case ' ', '\t', '\n', '\r', '=', '&', ';', ',', ':', '"', '\'', '{', '}', '[', ']', '(', ')':
+		return true
+	}
+	return false
+}
+
+// findHoneytoken returns the first hp_live_ token contained in s, or "".
+func findHoneytoken(s string) string {
+	if !strings.Contains(s, honeytokenPrefix) {
+		return ""
+	}
+	for _, word := range strings.FieldsFunc(s, isTokenSeparator) {
+		if isHoneytoken(word) {
+			return word
+		}
+	}
+	return ""
+}
+
+// detectHoneytokenInRequest scans the already-captured apiKey, every request
+// header (cookies included) and every query parameter for a hp_live_ token.
+// Returns the token if found, empty string otherwise.
 func detectHoneytokenInRequest(r *http.Request, capturedKey string) string {
 	if isHoneytoken(capturedKey) {
 		return capturedKey
 	}
 	for _, vals := range r.Header {
 		for _, v := range vals {
-			// A header might contain the token inline (e.g. "Bearer hp_live_...")
-			for _, word := range strings.Fields(v) {
-				word = strings.Trim(word, `"',;`)
-				if isHoneytoken(word) {
-					return word
-				}
+			if tk := findHoneytoken(v); tk != "" {
+				return tk
+			}
+		}
+	}
+	for _, vals := range r.URL.Query() {
+		for _, v := range vals {
+			if tk := findHoneytoken(v); tk != "" {
+				return tk
 			}
 		}
 	}
