@@ -192,3 +192,84 @@ func globalProtectTrap(w http.ResponseWriter, r *http.Request, info *HoneypotReq
 	}
 	return false
 }
+
+// aiAgentTrap covers the AI-agent reconnaissance wave documented by the SANS
+// Internet Storm Center in July 2026 (diary 33150): broad, distributed
+// scanning for Model Context Protocol servers, AI coding-assistant config and
+// credential files, and unauthenticated local LLM endpoints — on hosts that
+// run none of them. The MCP probes are not dumb URL requests; they carry a
+// well-formed JSON-RPC 2.0 "initialize" call and the scanner only continues if
+// something answers like an MCP server, so this arm answers like one.
+//
+// The config and credential arms hand out IP-specific honeytokens: an exposed
+// MCP config is exactly where a real GitHub PAT or database URL would sit, so
+// a stolen token from here is a high-confidence reuse signal.
+// Everything served is fabricated and inert; no metadata service is contacted.
+func aiAgentTrap(w http.ResponseWriter, r *http.Request, info *HoneypotRequest) bool {
+	p := strings.ToLower(r.URL.Path)
+	switch {
+	case p == "/mcp", p == "/mcp/", p == "/sse", p == "/mcp/sse":
+		markAttack(info, "mcp-server-probe")
+		w.Header().Set("Content-Type", "application/json")
+		fmt.Fprint(w,
+			`{"jsonrpc":"2.0","id":1,"result":{"protocolVersion":"2025-03-26",`+
+				`"capabilities":{"tools":{"listChanged":false},"prompts":{"listChanged":false},`+
+				`"resources":{"subscribe":false,"listChanged":false}},`+
+				`"serverInfo":{"name":"internal-tools","version":"0.4.2"}}}`)
+		return true
+	case strings.HasSuffix(p, "/.credentials.json"), strings.HasSuffix(p, "/credentials.json"):
+		markAttack(info, "ai-assistant-credentials")
+		token := honeytoken(info.ip, "ai-assistant-credentials")
+		w.Header().Set("Content-Type", "application/json")
+		fmt.Fprintf(w,
+			`{"claudeAiOauth":{"accessToken":%q,"refreshToken":"rt_honeypot_0000000000",`+
+				`"expiresAt":1791936000000,"scopes":["user:inference","user:profile"],`+
+				`"subscriptionType":"max"}}`, token)
+		return true
+	case strings.HasPrefix(p, "/.claude/"), strings.HasPrefix(p, "/.cursor/"),
+		strings.HasPrefix(p, "/.mcp/"), p == "/.vscode/mcp.json":
+		markAttack(info, "ai-assistant-config")
+		token := honeytoken(info.ip, "ai-assistant-config")
+		w.Header().Set("Content-Type", "application/json")
+		fmt.Fprintf(w,
+			`{"mcpServers":{"github":{"command":"npx",`+
+				`"args":["-y","@modelcontextprotocol/server-github"],`+
+				`"env":{"GITHUB_PERSONAL_ACCESS_TOKEN":%q}},`+
+				`"postgres":{"command":"npx","args":["-y","@modelcontextprotocol/server-postgres",`+
+				`"postgresql://appuser:ProdPass2024!@prod-db.internal:5432/appdb"]}}}`, token)
+		return true
+	case p == "/v1/models":
+		markAttack(info, "llm-openai-models")
+		w.Header().Set("Content-Type", "application/json")
+		fmt.Fprint(w,
+			`{"object":"list","data":[`+
+				`{"id":"llama-3.1-8b-instruct","object":"model","created":1770000000,"owned_by":"local"},`+
+				`{"id":"qwen2.5-coder-7b","object":"model","created":1770000000,"owned_by":"local"}]}`)
+		return true
+	case p == "/api/tags", p == "/api/ps":
+		markAttack(info, "ollama-tags")
+		w.Header().Set("Content-Type", "application/json")
+		fmt.Fprint(w,
+			`{"models":[{"name":"llama3.1:8b","model":"llama3.1:8b",`+
+				`"modified_at":"2026-05-11T09:14:02Z","size":4920753328,"digest":"365c0bd3c000",`+
+				`"details":{"family":"llama","parameter_size":"8.0B","quantization_level":"Q4_K_M"}}]}`)
+		return true
+	case p == "/fetch", p == "/proxy", p == "/api/fetch", p == "/api/proxy":
+		// Only an SSRF probe if a parameter actually points at a metadata
+		// service; a bare /fetch falls through to the normal 404 path.
+		for _, vals := range r.URL.Query() {
+			for _, v := range vals {
+				lv := strings.ToLower(v)
+				if strings.Contains(lv, "metadata.google.internal") ||
+					strings.Contains(lv, "169.254.169.254") ||
+					strings.Contains(lv, "metadata.azure.com") {
+					markAttack(info, "ssrf-metadata-probe")
+					w.Header().Set("Content-Type", "application/json")
+					fmt.Fprint(w, `{"error":"upstream fetch failed","detail":"dial tcp 169.254.169.254:80: connect: connection refused"}`)
+					return true
+				}
+			}
+		}
+	}
+	return false
+}
