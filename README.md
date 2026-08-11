@@ -1,6 +1,6 @@
 # 🍯 HTTP Honeypot
 
-A high-interaction HTTP honeypot written in **Go**. It simulates **75+ real attack surfaces**, tarpits every request with a cryptographically random delay, embeds **honeytokens** in fake responses to detect credential reuse, and automatically reports attackers to **AbuseIPDB**.
+A high-interaction HTTP honeypot written in **Go**. It simulates **85+ real attack surfaces**, tarpits every request with a cryptographically random delay, embeds **honeytokens** in fake responses to detect credential reuse, and automatically reports attackers to **AbuseIPDB**.
 
 📖 **Full documentation:** https://andreaskasper.github.io/http-honeypot/
 
@@ -8,7 +8,7 @@ A high-interaction HTTP honeypot written in **Go**. It simulates **75+ real atta
 
 ## Features
 
-- 🎣 **75+ attack traps** — Spring Actuator, WordPress, Exchange/OWA, SharePoint, ColdFusion, Citrix NetScaler, PAN-OS GlobalProtect, Fortinet, Kubernetes, Docker API, AWS/GCP metadata, Git leaks, phpMyAdmin, Jenkins, Confluence, Langflow, web shells, and more
+- 🎣 **85+ attack traps** — Spring Actuator, WordPress, Exchange/OWA, SharePoint, ColdFusion, Citrix NetScaler, PAN-OS GlobalProtect, Fortinet, Kubernetes, Docker API, AWS/GCP metadata, Git leaks, phpMyAdmin, Jenkins, Confluence, Langflow, MCP/AI-agent recon, N-able N-central, web shells, and more
 - 🍯 **Honeytokens** — IP-specific fake API keys (`hp_live_*`) embedded in responses; detected and flagged with a `honeytoken_used` webhook event when an attacker reuses them
 - 🚀 **Dynamic response webhook** — Return custom content for unknown URLs via `WEBHOOK_NEW_URL` with caching
 - 🚫 **AbuseIPDB integration** — automatically reports attacking IPs with configurable per-IP cooldown
@@ -179,8 +179,12 @@ Tokens appear in:
 - `/.aws/credentials` → `aws_secret_access_key`
 - `/api/v*/users/{id}` → `api_key` field
 - `/api/v1/api_key` (Langflow) → `api_keys[].api_key`
+- `/api/v1/auto_login` (Langflow, CVE-2026-9198) → `access_token`
 - `/p/u/doAuthentication.do` (CitrixBleed 2) → fake leaked memory in `<InitialValue>`
 - `/global-protect/getconfig.esp` (PAN-OS) → `<portal-userauthcookie>`
+- `/.claude/mcp.json` and friends → `env.GITHUB_PERSONAL_ACCESS_TOKEN`
+- `/.claude/.credentials.json` → `claudeAiOauth.accessToken`
+- `/api/auth/authenticate` (N-central) → `tokens.access.token`
 
 If an attacker submits a token back to **any** endpoint (as a header, cookie, query parameter, or POST body), the honeypot:
 1. Detects it in `detectHoneytokenInRequest()`
@@ -254,6 +258,7 @@ For honeytoken reuse events, `event` is `"honeytoken_used"` and `is_honeytoken_u
 | Fortinet / VPN | `fortinet-fgt`, `sonicwall-vpn`, `pulse-secure`, `cisco-asa-vpn` |
 | Citrix NetScaler 🍯 | `citrix-netscaler-bleed`, `citrix-netscaler-logon`, `citrix-netscaler-scan` |
 | PAN-OS GlobalProtect 🍯 | `panos-globalprotect-login`, `panos-globalprotect-prelogin`, `panos-globalprotect-config`, `panos-globalprotect-scan` |
+| N-able N-central 🍯 | `nable-ncentral-auth`, `nable-ncentral-soap`, `nable-ncentral-scan` |
 | Kubernetes | `k8s-pods`, `k8s-secrets` |
 | Docker API | `docker-api` |
 | Grafana | `grafana` |
@@ -263,7 +268,8 @@ For honeytoken reuse events, `event` is `"honeytoken_used"` and `is_honeytoken_u
 | Apache | `apache-server-status` |
 | Routers / legacy | `fritzbox`, `admin-config`, `bag2`, `config-getuser` |
 | Cloud Metadata | `aws-metadata`, `gcp-metadata`, `do-metadata` |
-| AI / LLM tooling 🍯 | `langflow-rce`, `langflow-apikey`, `langflow-scan` |
+| AI / LLM tooling 🍯 | `langflow-rce`, `langflow-autologin`, `langflow-apikey`, `langflow-scan` |
+| AI agents / MCP 🍯 | `mcp-server-probe`, `ai-assistant-config`, `ai-assistant-credentials`, `llm-openai-models`, `ollama-tags`, `ssrf-metadata-probe` |
 | REST API IDOR 🍯 | `rest-api-idor-users/accounts/admin/customers/employees` |
 | Credential leaks 🍯 | `env-file`, `aws-credentials`, `htpasswd`, `ssh-key` |
 | Git leaks | `git-config`, `git-head` |
