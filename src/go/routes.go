@@ -406,6 +406,14 @@ func handleRoutes(w http.ResponseWriter, r *http.Request, info *HoneypotRequest)
 		return
 	}
 
+	/* ── AI-agent recon / N-able N-central ────────────────────────────── */
+	// Same reason for the placement: aiAgentTrap claims /credentials.json,
+	// but .aws/credentials is matched in the suffix block above and keeps its
+	// own aws-credentials tag.
+	if aiAgentTrap(w, r, info) || nCentralTrap(w, r, info) {
+		return
+	}
+
 	/* ── Prefix-based traps ───────────────────────────────────────────── */
 	switch {
 	case strings.HasPrefix(pathLower, "/wp-content") || strings.HasPrefix(pathLower, "/wp-json"):
