@@ -273,3 +273,41 @@ func aiAgentTrap(w http.ResponseWriter, r *http.Request, info *HoneypotRequest) 
 	}
 	return false
 }
+
+// nCentralTrap covers N-able N-central, the MSP remote-monitoring platform
+// added to the CISA KEV catalog in August 2026: CVE-2026-18556, and then
+// CVE-2026-18577 after the vendor's first fix turned out to be incomplete and
+// attackers found another route to the same unauthenticated administrative
+// account takeover. One compromised console reaches every managed endpoint
+// behind it, which is why the surface is being swept so hard.
+//
+// The auth arm returns the real token-response shape with an IP-specific
+// honeytoken where the access token would be, so a bypass that appears to
+// succeed hands the attacker a credential we can track.
+func nCentralTrap(w http.ResponseWriter, r *http.Request, info *HoneypotRequest) bool {
+	p := strings.ToLower(r.URL.Path)
+	switch {
+	case p == "/api/auth/authenticate", p == "/api/auth/refresh":
+		markAttack(info, "nable-ncentral-auth")
+		token := honeytoken(info.ip, "nable-ncentral-auth")
+		w.Header().Set("Content-Type", "application/json")
+		fmt.Fprintf(w,
+			`{"tokens":{"access":{"token":%q,"type":"Bearer","expirySeconds":"3600"},`+
+				`"refresh":{"token":"rt_honeypot_0000000000","type":"Bearer","expirySeconds":"36000"}}}`,
+			token)
+		return true
+	case strings.HasPrefix(p, "/dms2/services2/"), strings.HasPrefix(p, "/dms/services/"):
+		markAttack(info, "nable-ncentral-soap")
+		w.Header().Set("Content-Type", "text/xml; charset=utf-8")
+		fmt.Fprint(w, `<?xml version="1.0" encoding="UTF-8"?><definitions xmlns="http://schemas.xmlsoap.org/wsdl/" xmlns:soap="http://schemas.xmlsoap.org/wsdl/soap/" xmlns:tns="http://ei2.nobj.nable.com/" targetNamespace="http://ei2.nobj.nable.com/" name="ServerEI2Service"><service name="ServerEI2Service"><port name="ServerEI2Port" binding="tns:ServerEI2PortBinding"><soap:address location="https://ncentral.internal/dms2/services2/ServerEI2"/></port></service></definitions>`)
+		return true
+	case strings.HasPrefix(p, "/dms/"), strings.HasPrefix(p, "/dms2/"),
+		strings.HasPrefix(p, "/api-explorer"), strings.HasPrefix(p, "/download/current/"):
+		markAttack(info, "nable-ncentral-scan")
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		w.WriteHeader(404)
+		fmt.Fprint(w, `<html><head><title>N-able N-central</title></head><body><h1>Not Found</h1><p>N-able N-central 2026.1.0.417</p></body></html>`)
+		return true
+	}
+	return false
+}
