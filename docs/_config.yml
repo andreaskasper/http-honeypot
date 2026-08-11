@@ -1,5 +1,5 @@
 title: HTTP Honeypot
-description: "High-interaction HTTP honeypot with 75+ attack traps, structured JSON logging, Pushover & webhook notifications, and Prometheus metrics."
+description: "High-interaction HTTP honeypot with 85+ attack traps, structured JSON logging, Pushover & webhook notifications, and Prometheus metrics."
 url: "https://andreaskasper.github.io"
 baseurl: "/http-honeypot"
 
