@@ -53,10 +53,17 @@ The `hp_live_` prefix is recognizable at a glance. The 20-hex suffix is determin
 | `/.aws/credentials` | `aws_secret_access_key` | AWS secret key |
 | `/api/v*/users/{id}` | `api_key` | REST API key |
 | `/api/v1/api_key` | `api_keys[].api_key` | Langflow API key |
+| `/api/v1/auto_login` | `access_token` | Langflow SUPERUSER JWT (CVE-2026-9198) |
 | `/p/u/doAuthentication.do` | `<InitialValue>` | NetScaler session material in fake leaked memory |
 | `/global-protect/getconfig.esp` | `<portal-userauthcookie>` | GlobalProtect portal auth cookie |
+| `/.claude/mcp.json` and friends | `env.GITHUB_PERSONAL_ACCESS_TOKEN` | GitHub PAT in an MCP server config |
+| `/.claude/.credentials.json` | `claudeAiOauth.accessToken` | AI assistant OAuth token |
+| `/api/auth/authenticate` | `tokens.access.token` | N-central admin bearer token |
 
 They all mimic the format of real credentials that automated scanners and credential-harvesting tools look for specifically.
+
+{: .note }
+> The Langflow and N-central carriers sit on endpoints an attacker reaches through an **authentication bypass**. The bypass appears to succeed, the attacker replays the token on the next request, and `detectHoneytokenInRequest` catches it — so the whole chain is observable end to end.
 
 ---
 

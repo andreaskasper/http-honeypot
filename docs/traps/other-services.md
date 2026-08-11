@@ -37,10 +37,17 @@ Returns ColdFusion's characteristic "Error Occurred While Processing Request" pa
 
 ## Langflow / AI agent platforms 🍯
 
+**Path:** `/api/v1/auto_login`  
+**Tag:** `langflow-autologin`
+
+**CVE-2026-9198** (CISA KEV, 2026-08-05) — this endpoint enforces no authentication and is not bound to loopback, so on a real Langflow it mints a SUPERUSER JWT for any network caller. That token is then replayed against `/api/v1/validate/code` to execute Python in-process; the two halves are one chain.
+
+The honeypot returns the real token-response shape with an **IP-specific honeytoken** as `access_token`. When the scanner comes back with `Authorization: Bearer hp_live_...`, `detectHoneytokenInRequest` catches it and you get a `honeytoken_used` event instead of a second `attack` event.
+
 **Path:** `/api/v1/validate/code`  
 **Tag:** `langflow-rce`
 
-**CVE-2025-3248** — unauthenticated code execution in Langflow's code validation endpoint, still actively scanned by botnets. Returns a fake "no errors" validation result.
+**CVE-2025-3248** — unauthenticated code execution in Langflow's code validation endpoint, still actively scanned by botnets, and the second step of the CVE-2026-9198 chain above. Returns a fake "no errors" validation result.
 
 **Paths:** `/api/v1/api_key`, `/api/v1/variables`  
 **Tag:** `langflow-apikey`
@@ -51,6 +58,30 @@ Returns a fake API key listing containing an **IP-specific honeytoken** (`hp_liv
 **Tag:** `langflow-scan`
 
 Fingerprinting and the cross-tenant IDOR **CVE-2026-55255** — the first AI agent platform vulnerability ever added to CISA KEV.
+
+{: .note }
+> For the broader AI-agent reconnaissance wave — MCP servers, assistant credential files, local LLM endpoints — see [AI Agents & MCP](ai-agents).
+
+---
+
+## N-able N-central 🍯
+
+**Paths:** `/api/auth/authenticate`, `/api/auth/refresh`  
+**Tag:** `nable-ncentral-auth`
+
+N-central is the RMM platform MSPs use to manage their customers' endpoints, so one compromised console reaches every machine behind it. CISA added **CVE-2026-18556** to the KEV catalog on 2026-08-03 and **CVE-2026-18577** on 2026-08-05 — the second because the vendor's first fix was incomplete and attackers found another route to the same unauthenticated administrative account takeover. Both were exploited in the wild with confirmed customer compromises.
+
+This is the REST token endpoint the bypass is ultimately after. The honeypot returns the real response shape (`tokens.access.token`, `tokens.refresh.token`, 3600-second expiry) with an **IP-specific honeytoken** in place of the access token, so a bypass that appears to succeed hands the attacker a credential you can track.
+
+**Path prefixes:** `/dms/services/*`, `/dms2/services2/*`  
+**Tag:** `nable-ncentral-soap`
+
+The legacy and V2 SOAP surfaces (`ServerEI` / `ServerEI2`). Returns an inert stub WSDL.
+
+**Path prefixes:** `/dms/*`, `/dms2/*`, `/api-explorer*`, `/download/current/*`  
+**Tag:** `nable-ncentral-scan`
+
+Fingerprinting paths — the embedded Swagger UI and the agent-installer download tree — distinctive enough to N-central that a hit is a deliberate probe rather than background noise.
 
 ---
 
