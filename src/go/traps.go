@@ -78,10 +78,23 @@ func coldFusionTrap(w http.ResponseWriter, r *http.Request, info *HoneypotReques
 // langflowTrap covers Langflow, the first AI agent platform added to the CISA
 // KEV catalog (CVE-2026-55255 cross-tenant IDOR; CVE-2025-3248 unauthenticated
 // code execution via /api/v1/validate/code, still botnet-scanned).
-// The API-key listing embeds an IP-specific honeytoken.
+//
+// CVE-2026-9198 (KEV, 2026-08-05) chains the two API arms below: /auto_login
+// mints a SUPERUSER JWT for any caller, and that token is replayed against
+// /validate/code to execute Python in-process. Both the auto_login token and
+// the API-key listing embed IP-specific honeytokens, so the replay step is
+// caught by detectHoneytokenInRequest.
 func langflowTrap(w http.ResponseWriter, r *http.Request, info *HoneypotRequest) bool {
 	p := r.URL.Path
 	switch {
+	case p == "/api/v1/auto_login":
+		markAttack(info, "langflow-autologin")
+		token := honeytoken(info.ip, "langflow-autologin")
+		w.Header().Set("Content-Type", "application/json")
+		fmt.Fprintf(w,
+			`{"access_token":%q,"refresh_token":"rt_honeypot_0000000000",`+
+				`"token_type":"bearer"}`, token)
+		return true
 	case p == "/api/v1/validate/code":
 		markAttack(info, "langflow-rce")
 		w.Header().Set("Content-Type", "application/json")
