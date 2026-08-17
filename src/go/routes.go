@@ -276,10 +276,13 @@ func handleRoutes(w http.ResponseWriter, r *http.Request, info *HoneypotRequest)
 		return
 	}
 
-	/* ── 2026 attack surfaces: SharePoint / ColdFusion / Langflow ─────── */
+	/* ── 2026 attack surfaces: SharePoint / ColdFusion / Langflow / Metabase ── */
 	// Placed after the exact-match blocks above so /api/v1/pods and friends
 	// keep their own tags; each helper returns true only if it answered.
-	if sharePointTrap(w, r, info) || coldFusionTrap(w, r, info) || langflowTrap(w, r, info) {
+	// metabaseTrap goes last of the four: it claims /api/database and
+	// /api/session/*, which nothing above touches.
+	if sharePointTrap(w, r, info) || coldFusionTrap(w, r, info) ||
+		langflowTrap(w, r, info) || metabaseTrap(w, r, info) {
 		return
 	}
 
@@ -399,10 +402,11 @@ func handleRoutes(w http.ResponseWriter, r *http.Request, info *HoneypotRequest)
 		return
 	}
 
-	/* ── Edge VPN appliances: Citrix NetScaler / PAN-OS GlobalProtect ── */
+	/* ── Edge appliances: Citrix NetScaler / GlobalProtect / LoadMaster ── */
 	// Placed after the traversal/exact-match blocks so those keep their tags;
 	// each helper returns true only if it answered the request.
-	if citrixNetScalerTrap(w, r, info) || globalProtectTrap(w, r, info) {
+	if citrixNetScalerTrap(w, r, info) || globalProtectTrap(w, r, info) ||
+		loadMasterTrap(w, r, info) {
 		return
 	}
 
