@@ -120,6 +120,71 @@ func langflowTrap(w http.ResponseWriter, r *http.Request, info *HoneypotRequest)
 	return false
 }
 
+// metabaseTrap covers Metabase, the self-hosted BI platform behind
+// CVE-2026-72898 — an unauthenticated SQL injection in the password-reset
+// endpoint, CVSS 10.0, added to the CISA KEV catalog on 2026-08-11 and
+// exploited in the wild before the vendor advisory of 2026-08-06. Internet-wide
+// scanning found roughly 11,000 self-hosted instances with about 4,300 on
+// vulnerable branches, and the prize is the application database, which stores
+// the credentials of every connected data source.
+//
+// Scanners fingerprint Metabase through the unauthenticated
+// /api/session/properties settings blob before they send anything, so that arm
+// hands out an IP-specific honeytoken where the setup-token sits — the same
+// secret the older CVE-2023-38646 chain replays into /api/setup/validate. The
+// /api/database arm puts a honeytoken in the connection details, which is
+// exactly what the SQLi is aimed at. Either token coming back is caught by
+// detectHoneytokenInRequest.
+//
+// The scan arm is deliberately limited to unambiguously Metabase paths;
+// /api/health is left out because a plain uptime monitor would otherwise end up
+// reported to AbuseIPDB. Everything served is fabricated; no database is
+// contacted.
+func metabaseTrap(w http.ResponseWriter, r *http.Request, info *HoneypotRequest) bool {
+	switch strings.ToLower(r.URL.Path) {
+	case "/api/session/properties":
+		markAttack(info, "metabase-properties")
+		token := honeytoken(info.ip, "metabase-properties")
+		w.Header().Set("Content-Type", "application/json;charset=utf-8")
+		fmt.Fprintf(w,
+			`{"engines":{"postgres":{"driver-name":"PostgreSQL"},"h2":{"driver-name":"H2"}},`+
+				`"setup-token":%q,"has-user-setup":true,"site-name":"Metabase",`+
+				`"site-locale":"en","enable-password-login":true,"anon-tracking-enabled":false,`+
+				`"version":{"tag":"v0.58.6","date":"2026-06-18","hash":"9a1c0f2"}}`, token)
+		return true
+	case "/api/session/reset_password":
+		markAttack(info, "metabase-sqli")
+		w.Header().Set("Content-Type", "application/json;charset=utf-8")
+		w.WriteHeader(400)
+		fmt.Fprint(w, `{"errors":{"password":"Invalid reset token"}}`)
+		return true
+	case "/api/setup/validate":
+		markAttack(info, "metabase-setup-validate")
+		w.Header().Set("Content-Type", "application/json;charset=utf-8")
+		w.WriteHeader(400)
+		fmt.Fprint(w, `{"errors":{"details":"Cannot connect to database."},"message":"Unable to connect to the database."}`)
+		return true
+	case "/api/database", "/api/database/":
+		markAttack(info, "metabase-database-list")
+		token := honeytoken(info.ip, "metabase-database-list")
+		w.Header().Set("Content-Type", "application/json;charset=utf-8")
+		fmt.Fprintf(w,
+			`{"total":1,"data":[{"id":2,"name":"Production","engine":"postgres",`+
+				`"details":{"host":"prod-db.internal","port":5432,"dbname":"appdb",`+
+				`"user":"metabase_ro","password":%q,"ssl":true},`+
+				`"is_full_sync":true,"created_at":"2025-11-02T09:41:17.203Z"}]}`, token)
+		return true
+	case "/api/util/logs", "/api/util/stats", "/api/setup/user_defaults",
+		"/api/session/password_reset_token_valid":
+		markAttack(info, "metabase-scan")
+		w.Header().Set("Content-Type", "application/json;charset=utf-8")
+		w.WriteHeader(401)
+		fmt.Fprint(w, `{"via":[{"status-code":401,"message":"Unauthenticated"}],"message":"Unauthenticated"}`)
+		return true
+	}
+	return false
+}
+
 // citrixNetScalerTrap covers Citrix NetScaler ADC / Gateway, one of the most
 // heavily scanned edge appliances on the internet. The doAuthentication.do arm
 // answers the CitrixBleed 2 probe (CVE-2025-5777 — a pre-auth memory
