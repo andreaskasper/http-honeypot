@@ -64,6 +64,58 @@ Fingerprinting and the cross-tenant IDOR **CVE-2026-55255** — the first AI age
 
 ---
 
+## Metabase 🍯
+
+**Path:** `/api/session/properties`  
+**Tag:** `metabase-properties`
+
+This is the arm that matters. Metabase exposes its settings blob without authentication, so every scanner — and every public exploit script — fetches it first to fingerprint the version and decide whether the host is worth attacking. The honeypot answers with a plausible `v0.58.6` settings document that carries an **IP-specific honeytoken** in the `setup-token` field.
+
+That field is not decoration: in the **CVE-2023-38646** chain the leaked setup token is replayed against `/api/setup/validate` to get pre-auth RCE through an H2 connection string. So a scanner that follows the documented path hands the token straight back to us and `detectHoneytokenInRequest` turns the second request into a `honeytoken_used` event.
+
+**Path:** `/api/session/reset_password`  
+**Tag:** `metabase-sqli`
+
+**CVE-2026-72898** — unauthenticated SQL injection in the password-reset endpoint, CVSS 10.0, added to the CISA KEV catalog on 2026-08-11 and exploited in the wild before the vendor advisory of 2026-08-06. Framework, Anaconda and n8n have all disclosed unauthorised customer-data access from the pre-patch window. Internet-wide scanning found roughly 11,000 self-hosted instances, about 4,300 of them on vulnerable branches.
+
+Returns a fake `400` with an "Invalid reset token" error — the same answer a real instance gives a malformed request, so a probe looks like it hit a live endpoint rather than a 404.
+
+**Path:** `/api/setup/validate`  
+**Tag:** `metabase-setup-validate`
+
+The second half of the CVE-2023-38646 chain. Returns the "Unable to connect to the database" error shape.
+
+**Path:** `/api/database`  
+**Tag:** `metabase-database-list`
+
+What the SQL injection is ultimately aimed at: Metabase's application database stores the credentials of **every connected data source**, which is why a single compromised instance turns into access to the warehouse behind it. The fake listing puts an **IP-specific honeytoken** in `data[].details.password`.
+
+**Paths:** `/api/util/logs`, `/api/util/stats`, `/api/setup/user_defaults`, `/api/session/password_reset_token_valid`  
+**Tag:** `metabase-scan`
+
+Fingerprinting paths distinctive enough to Metabase that a hit is a deliberate probe.
+
+{: .note }
+> `/api/health` is deliberately **not** trapped. It is common enough across unrelated software that an ordinary uptime monitor would end up reported to AbuseIPDB, and a false positive there costs more than the extra coverage is worth.
+
+---
+
+## Progress Kemp LoadMaster
+
+**Paths:** `/access`, `/access/*`  
+**Tag:** `loadmaster-api`
+
+**CVE-2026-8037** — unauthenticated command injection in the LoadMaster management interface, CVSS 9.6, added to the CISA KEV catalog on 2026-08-07 with a three-day remediation deadline. The root cause is a heap buffer in `escape_quotes()` that is not null-terminated, letting attacker-controlled bytes reach a `system()` call. Reporting counts 792 exploitation attempts from dozens of source IPs; there are more than 100,000 LoadMaster deployments and the appliance sits directly in front of the application estate.
+
+The RESTful management interface lives at `/access/<command>` and answers with a `<Response stat="..." code="...">` document. The honeypot returns that document with a `401` and `Authorization required`, which is what an unauthenticated caller gets from a real appliance — enough for a scanner to classify the host as a LoadMaster and keep going instead of moving on after a generic 404.
+
+No honeytoken here: the API authenticates by user and password in the query string, so a faked success would have nothing credential-shaped to hand back.
+
+{: .note }
+> The `/progs/` web-UI paths are deliberately unclaimed — they could not be confirmed against vendor documentation, and a trap built on a guessed path is dead weight.
+
+---
+
 ## N-able N-central 🍯
 
 **Paths:** `/api/auth/authenticate`, `/api/auth/refresh`  
