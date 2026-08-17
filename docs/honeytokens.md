@@ -54,6 +54,8 @@ The `hp_live_` prefix is recognizable at a glance. The 20-hex suffix is determin
 | `/api/v*/users/{id}` | `api_key` | REST API key |
 | `/api/v1/api_key` | `api_keys[].api_key` | Langflow API key |
 | `/api/v1/auto_login` | `access_token` | Langflow SUPERUSER JWT (CVE-2026-9198) |
+| `/api/session/properties` | `setup-token` | Metabase setup token (CVE-2023-38646 chain) |
+| `/api/database` | `data[].details.password` | Password of a connected database (CVE-2026-72898 target) |
 | `/p/u/doAuthentication.do` | `<InitialValue>` | NetScaler session material in fake leaked memory |
 | `/global-protect/getconfig.esp` | `<portal-userauthcookie>` | GlobalProtect portal auth cookie |
 | `/.claude/mcp.json` and friends | `env.GITHUB_PERSONAL_ACCESS_TOKEN` | GitHub PAT in an MCP server config |
@@ -63,7 +65,7 @@ The `hp_live_` prefix is recognizable at a glance. The 20-hex suffix is determin
 They all mimic the format of real credentials that automated scanners and credential-harvesting tools look for specifically.
 
 {: .note }
-> The Langflow and N-central carriers sit on endpoints an attacker reaches through an **authentication bypass**. The bypass appears to succeed, the attacker replays the token on the next request, and `detectHoneytokenInRequest` catches it — so the whole chain is observable end to end.
+> The Langflow, Metabase and N-central carriers sit on endpoints an attacker reaches through an **authentication bypass**. The bypass appears to succeed, the attacker replays the token on the next request, and `detectHoneytokenInRequest` catches it — so the whole chain is observable end to end.
 
 ---
 
