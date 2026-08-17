@@ -389,3 +389,32 @@ func nCentralTrap(w http.ResponseWriter, r *http.Request, info *HoneypotRequest)
 	}
 	return false
 }
+
+// loadMasterTrap covers Progress Kemp LoadMaster, added to the CISA KEV
+// catalog on 2026-08-07 for CVE-2026-8037 — an unauthenticated command
+// injection in the management interface, CVSS 9.6, reported with 792
+// exploitation attempts from dozens of source IPs before it was listed. There
+// are north of 100,000 deployments and the appliance sits in front of the
+// application estate, so the management surface is being swept hard.
+//
+// The RESTful management interface lives under /access/<command> and answers
+// with a <Response stat=... code=...> document; an unauthenticated caller gets
+// that same shape with a 401. Answering in the appliance's own dialect is what
+// makes a scanner treat the host as a real LoadMaster and keep going.
+//
+// No credentials are served, so no honeytoken: the API authenticates by
+// user/password in the query string, and a fake success would have nothing
+// credential-shaped to hand back. The /progs/ WUI paths are deliberately not
+// claimed — they could not be confirmed against vendor documentation.
+func loadMasterTrap(w http.ResponseWriter, r *http.Request, info *HoneypotRequest) bool {
+	p := strings.ToLower(r.URL.Path)
+	if p != "/access" && !strings.HasPrefix(p, "/access/") {
+		return false
+	}
+	markAttack(info, "loadmaster-api")
+	w.Header().Set("Content-Type", "text/xml; charset=utf-8")
+	w.WriteHeader(401)
+	fmt.Fprint(w, `<?xml version="1.0" encoding="UTF-8"?>`+
+		`<Response stat="401" code="fail"><Error>Authorization required</Error></Response>`)
+	return true
+}
