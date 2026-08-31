@@ -1,6 +1,6 @@
 # 🍯 HTTP Honeypot
 
-A high-interaction HTTP honeypot written in **Go**. It simulates **85+ real attack surfaces**, tarpits every request with a cryptographically random delay, embeds **honeytokens** in fake responses to detect credential reuse, and automatically reports attackers to **AbuseIPDB**.
+A high-interaction HTTP honeypot written in **Go**. It simulates **90+ real attack surfaces**, tarpits every request with a cryptographically random delay, embeds **honeytokens** in fake responses to detect credential reuse, and automatically reports attackers to **AbuseIPDB**.
 
 📖 **Full documentation:** https://andreaskasper.github.io/http-honeypot/
 
@@ -8,7 +8,7 @@ A high-interaction HTTP honeypot written in **Go**. It simulates **85+ real atta
 
 ## Features
 
-- 🎣 **85+ attack traps** — Spring Actuator, WordPress, Exchange/OWA, SharePoint, ColdFusion, Citrix NetScaler, PAN-OS GlobalProtect, Fortinet, Kemp LoadMaster, Kubernetes, Docker API, AWS/GCP metadata, Git leaks, phpMyAdmin, Jenkins, Confluence, Metabase, Langflow, MCP/AI-agent recon, N-able N-central, web shells, and more
+- 🎣 **90+ attack traps** — Spring Actuator, WordPress, Exchange/OWA, SharePoint, ColdFusion, Citrix NetScaler, PAN-OS GlobalProtect, Fortinet, Kemp LoadMaster, VMware vCenter, Kubernetes, Docker API, AWS/GCP metadata, Git leaks, phpMyAdmin, Jenkins, Confluence, Metabase, Langflow, MCP/AI-agent recon, N-able N-central, developer credential stores, web shells, and more
 - 🍯 **Honeytokens** — IP-specific fake API keys (`hp_live_*`) embedded in responses; detected and flagged with a `honeytoken_used` webhook event when an attacker reuses them
 - 🚀 **Dynamic response webhook** — Return custom content for unknown URLs via `WEBHOOK_NEW_URL` with caching
 - 🚫 **AbuseIPDB integration** — automatically reports attacking IPs with configurable per-IP cooldown
@@ -176,7 +176,13 @@ Every fake response that contains credentials embeds an **IP-specific honeytoken
 Tokens appear in:
 - `/actuator/env` → `AWS_SECRET_ACCESS_KEY`
 - `/.env` → `STRIPE_SECRET_KEY`
+- `/.env.local`, `/.env.bak`, `/.env.production` and friends → `STRIPE_SECRET_KEY`
 - `/.aws/credentials` → `aws_secret_access_key`
+- `/.git-credentials` → the password in the fake clone URL
+- `/.netrc`, `/_netrc`, `/.pgpass` → `password`
+- `/.npmrc`, `/.pypirc`, `/.s3cfg` → `_authToken`
+- `/.docker/config.json` → `auths[].identitytoken`
+- `/@fs/*` (Vite, CVE-2025-30208) → `STRIPE_SECRET_KEY`
 - `/api/v*/users/{id}` → `api_key` field
 - `/api/v1/api_key` (Langflow) → `api_keys[].api_key`
 - `/api/v1/auto_login` (Langflow, CVE-2026-9198) → `access_token`
@@ -184,6 +190,7 @@ Tokens appear in:
 - `/api/database` (Metabase) → `data[].details.password`
 - `/p/u/doAuthentication.do` (CitrixBleed 2) → fake leaked memory in `<InitialValue>`
 - `/global-protect/getconfig.esp` (PAN-OS) → `<portal-userauthcookie>`
+- `/rest/com/vmware/cis/session` (vCenter) → the session id in `value`
 - `/.claude/mcp.json` and friends → `env.GITHUB_PERSONAL_ACCESS_TOKEN`
 - `/.claude/.credentials.json` → `claudeAiOauth.accessToken`
 - `/api/auth/authenticate` (N-central) → `tokens.access.token`
@@ -262,6 +269,7 @@ For honeytoken reuse events, `event` is `"honeytoken_used"` and `is_honeytoken_u
 | PAN-OS GlobalProtect 🍯 | `panos-globalprotect-login`, `panos-globalprotect-prelogin`, `panos-globalprotect-config`, `panos-globalprotect-scan` |
 | Kemp LoadMaster | `loadmaster-api` |
 | N-able N-central 🍯 | `nable-ncentral-auth`, `nable-ncentral-soap`, `nable-ncentral-scan` |
+| VMware vCenter 🍯 | `vmware-vcenter-sdk`, `vmware-vcenter-session`, `vmware-vcenter-websso`, `vmware-vcenter-scan` |
 | Kubernetes | `k8s-pods`, `k8s-secrets` |
 | Docker API | `docker-api` |
 | Grafana | `grafana` |
@@ -275,7 +283,9 @@ For honeytoken reuse events, `event` is `"honeytoken_used"` and `is_honeytoken_u
 | AI / LLM tooling 🍯 | `langflow-rce`, `langflow-autologin`, `langflow-apikey`, `langflow-scan` |
 | AI agents / MCP 🍯 | `mcp-server-probe`, `ai-assistant-config`, `ai-assistant-credentials`, `llm-openai-models`, `ollama-tags`, `ssrf-metadata-probe` |
 | REST API IDOR 🍯 | `rest-api-idor-users/accounts/admin/customers/employees` |
-| Credential leaks 🍯 | `env-file`, `aws-credentials`, `htpasswd`, `ssh-key` |
+| Credential leaks 🍯 | `env-file`, `env-file-variant`, `aws-credentials`, `htpasswd`, `ssh-key` |
+| Developer credential stores 🍯 | `git-credentials`, `password-store-leak`, `registry-token-leak` |
+| Vite dev server 🍯 | `vite-file-read` |
 | Git leaks | `git-config`, `git-head` |
 | Config leaks | `spring-config-leak`, `docker-compose-leak` |
 | API specs | `swagger` |
