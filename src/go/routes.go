@@ -402,11 +402,22 @@ func handleRoutes(w http.ResponseWriter, r *http.Request, info *HoneypotRequest)
 		return
 	}
 
+	/* ── Credential-file sweep (forged AI-crawler campaign) ───────────── */
+	// Runs directly after the suffix block on purpose: /.env,
+	// /.aws/credentials, /.git/config and /@fs/etc/passwd are matched above
+	// and keep their existing tags, so only the .env variants and the
+	// developer password stores that used to fall through reach this trap.
+	if credentialSweepTrap(w, r, info) {
+		return
+	}
+
 	/* ── Edge appliances: Citrix NetScaler / GlobalProtect / LoadMaster ── */
 	// Placed after the traversal/exact-match blocks so those keep their tags;
-	// each helper returns true only if it answered the request.
+	// each helper returns true only if it answered the request. vCenterTrap
+	// joins them here: none of /sdk, /websso/, /rest/com/vmware/ or
+	// /vsphere-* is claimed anywhere above.
 	if citrixNetScalerTrap(w, r, info) || globalProtectTrap(w, r, info) ||
-		loadMasterTrap(w, r, info) {
+		loadMasterTrap(w, r, info) || vCenterTrap(w, r, info) {
 		return
 	}
 
