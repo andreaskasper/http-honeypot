@@ -137,6 +137,39 @@ Fingerprinting paths — the embedded Swagger UI and the agent-installer downloa
 
 ---
 
+## VMware vCenter 🍯
+
+**Paths:** `/sdk`, `/sdk/*`, `/sdk/vimServiceVersions.xml`, `/sdkTunnel`  
+**Tag:** `vmware-vcenter-sdk`
+
+The vSphere SOAP endpoint, and the first thing a vCenter scanner touches. `vimServiceVersions.xml` is the unauthenticated version manifest used for fingerprinting; the honeypot returns a plausible `urn:vim25` 8.0.3 document. Everything else under `/sdk` — including the `RetrieveServiceContent` probe scanners POST there — gets vCenter's `ServerFaultCode` / `InvalidLogin` SOAP fault, which is what a real appliance answers an unauthenticated caller.
+
+Scanning of this surface picked up sharply after Broadcom's **VMSA-2026-0006** (2026-07-29) and has not let up since.
+
+**Path:** `/rest/com/vmware/cis/session`  
+**Tag:** `vmware-vcenter-session`
+
+The vSphere Automation session endpoint — where a successful authentication bypass hands back a session identifier that authenticates every subsequent API call. **CVE-2026-59309** is exactly that: an authentication bypass in the vmdir directory service, CVSS 9.8.
+
+The honeypot returns `{"value": "..."}` with an **IP-specific honeytoken** in place of the session id, so a bypass that appears to work leaves the attacker holding a credential you can watch for. Replaying it anywhere on the honeypot produces a `honeytoken_used` event.
+
+**Path prefix:** `/websso/*`  
+**Tag:** `vmware-vcenter-websso`
+
+The vCenter Single Sign-On flow. Honeypots have logged scanners walking the `/websso` SAML paths alongside the `/sdk` version probes. Returns a fake SSO login page with an 8.0.3 build banner.
+
+**Path prefixes:** `/rest/com/vmware/*`, `/vsphere-client/*`, `/vsphere-ui/*`, `/vcenter-services/*`  
+**Tag:** `vmware-vcenter-scan`
+
+The rest of the management plane. Returns the vAPI `com.vmware.vapi.std.errors.unauthenticated` error document with a `401`.
+
+**CVE-2026-59310** — the path traversal in the vCenter Syslog service that turns into unauthenticated code execution, CVSS 9.8, added to the CISA KEV catalog on 2026-08-18 — was exploited within five days of disclosure, with one campaign observed against 361 hosts across 47 countries dropping a `reverse_ssh` cron job for persistence. The exploit itself is not an HTTP path, so what a honeypot sees is the reconnaissance in front of it, which is what these four arms answer.
+
+{: .note }
+> The bare `/ui` path is deliberately **not** claimed. It is generic enough that unrelated software would be mislabelled as vCenter — and then reported to AbuseIPDB under that label.
+
+---
+
 ## Apache Solr
 
 **Path prefix:** `/solr/*`  
