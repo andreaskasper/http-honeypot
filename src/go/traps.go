@@ -418,3 +418,151 @@ func loadMasterTrap(w http.ResponseWriter, r *http.Request, info *HoneypotReques
 		`<Response stat="401" code="fail"><Error>Authorization required</Error></Response>`)
 	return true
 }
+
+// vCenterTrap covers the VMware vCenter management plane, swept hard since
+// Broadcom's VMSA-2026-0006 of 2026-07-29 and the KEV listing of
+// CVE-2026-59310 on 2026-08-18 — a path traversal in the vCenter Syslog
+// service that an unauthenticated caller turns into code execution. It was
+// exploited within five days of disclosure, and one campaign was observed
+// against 361 hosts in 47 countries, dropping a reverse_ssh cron job for
+// persistence. Its sibling CVE-2026-59309 is an authentication bypass in the
+// vmdir directory service, reached through the SSO flow.
+//
+// What a honeypot actually sees is the reconnaissance in front of that: SOAP
+// version probes (RetrieveServiceContent) against /sdk, walks of the /websso
+// SAML flow, and vSphere Automation session requests. Each arm answers in
+// vCenter's own dialect so the scanner treats the host as a real appliance and
+// keeps going.
+//
+// /rest/com/vmware/cis/session is where a successful authentication bypass
+// would hand back a session identifier, so that arm embeds an IP-specific
+// honeytoken; replaying it anywhere is caught by detectHoneytokenInRequest.
+// Nothing here parses a request body and no syslog path is ever touched.
+//
+// The bare /ui path is deliberately not claimed: it is generic enough that
+// unrelated software would be mislabelled as vCenter and reported to
+// AbuseIPDB for it.
+func vCenterTrap(w http.ResponseWriter, r *http.Request, info *HoneypotRequest) bool {
+	p := strings.ToLower(r.URL.Path)
+	switch {
+	case p == "/sdk/vimserviceversions.xml":
+		markAttack(info, "vmware-vcenter-sdk")
+		w.Header().Set("Content-Type", "text/xml; charset=utf-8")
+		fmt.Fprint(w, `<?xml version="1.0" encoding="UTF-8"?><namespaces version="1.0"><namespace><name>urn:vim25</name><version>8.0.3.0</version><priorVersions><version>8.0.2.0</version><version>7.0.3.0</version></priorVersions></namespace></namespaces>`)
+		return true
+	case p == "/sdk", p == "/sdk/", p == "/sdktunnel", strings.HasPrefix(p, "/sdk/"):
+		markAttack(info, "vmware-vcenter-sdk")
+		w.Header().Set("Content-Type", "text/xml; charset=utf-8")
+		w.WriteHeader(500)
+		fmt.Fprint(w, `<?xml version="1.0" encoding="UTF-8"?><soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"><soapenv:Body><soapenv:Fault><faultcode>ServerFaultCode</faultcode><faultstring>Cannot complete login due to an incorrect user name or password.</faultstring><detail><InvalidLoginFault xmlns="urn:vim25" xsi:type="InvalidLogin"></InvalidLoginFault></detail></soapenv:Fault></soapenv:Body></soapenv:Envelope>`)
+		return true
+	case p == "/rest/com/vmware/cis/session":
+		markAttack(info, "vmware-vcenter-session")
+		token := honeytoken(info.ip, "vmware-vcenter-session")
+		w.Header().Set("Content-Type", "application/json")
+		fmt.Fprintf(w, `{"value":%q}`, token)
+		return true
+	case strings.HasPrefix(p, "/websso/"):
+		markAttack(info, "vmware-vcenter-websso")
+		w.Header().Set("Content-Type", "text/html; charset=UTF-8")
+		fmt.Fprint(w, `<!DOCTYPE html><html><head><title>vCenter Single Sign-On</title></head><body><div id="loginForm"><h2>vCenter Single Sign-On</h2><form method="post" action="/websso/HealthStatus"><input type="text" name="username" autocomplete="off"/><input type="password" name="password" autocomplete="off"/><input type="submit" value="LOGIN"/></form><p>VMware vCenter Server 8.0.3 Build 24322831</p></div></body></html>`)
+		return true
+	case strings.HasPrefix(p, "/rest/com/vmware/"), strings.HasPrefix(p, "/vsphere-client/"),
+		strings.HasPrefix(p, "/vsphere-ui/"), strings.HasPrefix(p, "/vcenter-services/"):
+		markAttack(info, "vmware-vcenter-scan")
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(401)
+		fmt.Fprint(w, `{"type":"com.vmware.vapi.std.errors.unauthenticated","value":{"messages":[{"args":[],"default_message":"Unable to authenticate user","id":"com.vmware.vapi.endpoint.method.authentication.required"}]}}`)
+		return true
+	}
+	return false
+}
+
+// credentialSweepTrap covers the credential-file sweep GreyNoise published on
+// 2026-08-28: scanners spread across 824 addresses in 795 separate /24
+// networks forged the user-agent strings of 13 AI crawlers from eight
+// companies — the impostor ClaudeBot string matched Anthropic's character for
+// character — and asked for environment files, cloud access keys, private keys
+// and password stores in the millions of requests. Not one source address fell
+// inside any vendor's published crawler range, and not one of them ever
+// fetched /robots.txt.
+//
+// The bare /.env, /.aws/credentials and /.git/config paths from that report
+// already have traps in routes.go and keep their own tags. What fell through
+// to a plain 404 were the .env variants and the developer credential stores,
+// which is what this trap claims:
+//
+//   - .env.local / .env.production / .env.bak / .env.old / .env.swp — four of
+//     the ten most-requested impostor paths in the report
+//   - .git-credentials, .netrc, .pgpass — plaintext password stores
+//   - .npmrc, .pypirc, .s3cfg, .docker/config.json — registry and cloud tokens
+//   - /@fs/ — the Vite arbitrary file read (CVE-2025-30208) that GreyNoise
+//     tagged on the same client fingerprint. /@fs/etc/passwd is caught earlier
+//     by the path-traversal trap and keeps that tag.
+//
+// Every arm embeds an IP-specific honeytoken, so a sweep that would otherwise
+// be one more 404 becomes a credential we can watch for. Identification is by
+// path only: the forged user agent is deliberately not used as a signal,
+// because the genuine crawler sends the identical string and would then be
+// reported to AbuseIPDB for it.
+func credentialSweepTrap(w http.ResponseWriter, r *http.Request, info *HoneypotRequest) bool {
+	p := strings.ToLower(r.URL.Path)
+	base := p
+	if i := strings.LastIndex(p, "/"); i >= 0 {
+		base = p[i+1:]
+	}
+	switch {
+	case strings.HasPrefix(base, ".env."), base == ".env~", base == "env.bak":
+		markAttack(info, "env-file-variant")
+		token := honeytoken(info.ip, "env-file-variant")
+		w.Header().Set("Content-Type", "text/plain")
+		fmt.Fprintf(w,
+			"APP_ENV=production\nAPP_DEBUG=false\nAPP_URL=https://app.contoso.internal\n"+
+				"DB_HOST=prod-db.internal\nDB_DATABASE=appdb\nDB_USERNAME=appuser\n"+
+				"DB_PASSWORD=Sup3rS3cr3t!\nREDIS_URL=redis://cache.internal:6379/0\n"+
+				"AWS_ACCESS_KEY_ID=AKIAIOSFODNN7EXAMPLE\n"+
+				"STRIPE_SECRET_KEY=%s\n", token)
+		return true
+	case base == ".git-credentials":
+		markAttack(info, "git-credentials")
+		token := honeytoken(info.ip, "git-credentials")
+		w.Header().Set("Content-Type", "text/plain")
+		fmt.Fprintf(w, "https://svc-ci:%s@github.com\n", token)
+		return true
+	case base == ".netrc", base == "_netrc", base == ".pgpass":
+		markAttack(info, "password-store-leak")
+		token := honeytoken(info.ip, "password-store-leak")
+		w.Header().Set("Content-Type", "text/plain")
+		fmt.Fprintf(w,
+			"machine api.contoso.internal\n  login svc-deploy\n  password %s\n", token)
+		return true
+	case base == ".npmrc", base == ".pypirc", base == ".s3cfg",
+		strings.HasSuffix(p, "/.docker/config.json"):
+		markAttack(info, "registry-token-leak")
+		token := honeytoken(info.ip, "registry-token-leak")
+		if strings.HasSuffix(p, "config.json") {
+			w.Header().Set("Content-Type", "application/json")
+			fmt.Fprintf(w,
+				`{"auths":{"registry.contoso.internal:5000":`+
+					`{"auth":"c3ZjLWRlcGxveTpQcm9kUGFzczIwMjQh","identitytoken":%q}},`+
+					`"HttpHeaders":{"User-Agent":"Docker-Client/24.0.7 (linux)"}}`, token)
+			return true
+		}
+		w.Header().Set("Content-Type", "text/plain")
+		fmt.Fprintf(w,
+			"//registry.npmjs.org/:_authToken=%s\n"+
+				"@contoso:registry=https://npm.pkg.github.com/\n"+
+				"always-auth=true\n", token)
+		return true
+	case strings.HasPrefix(p, "/@fs/"), strings.HasPrefix(p, "/@id/"):
+		markAttack(info, "vite-file-read")
+		token := honeytoken(info.ip, "vite-file-read")
+		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+		fmt.Fprintf(w,
+			"VITE_API_URL=https://api.contoso.internal\n"+
+				"VITE_SENTRY_DSN=https://0@o0.ingest.sentry.io/0\n"+
+				"STRIPE_SECRET_KEY=%s\n", token)
+		return true
+	}
+	return false
+}
