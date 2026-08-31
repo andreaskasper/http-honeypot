@@ -6,7 +6,7 @@ has_children: true
 
 # Attack Traps
 
-The honeypot simulates **85+ real attack surfaces** that are actively scanned on the public internet every day. Each trap responds with convincing fake data — the same response format a real vulnerable server would return — to keep scanners engaged and wasting time.
+The honeypot simulates **90+ real attack surfaces** that are actively scanned on the public internet every day. Each trap responds with convincing fake data — the same response format a real vulnerable server would return — to keep scanners engaged and wasting time.
 
 Every matched trap sets an `attack_tag` in the JSON log and webhook payload, letting you route and analyse by attack type.
 
@@ -21,7 +21,7 @@ Every matched trap sets an `attack_tag` in the JSON log and webhook payload, let
 | AI Agents & MCP | [AI Agents & MCP](ai-agents) | `mcp-server-probe`, `ai-assistant-config`, `ai-assistant-credentials`, `llm-openai-models`, `ollama-tags`, `ssrf-metadata-probe` |
 | Kubernetes & Docker | [Kubernetes & Docker](kubernetes-docker) | `k8s-pods`, `k8s-secrets`, `docker-api` |
 | Cloud Metadata | [Cloud Metadata](cloud-metadata) | `aws-metadata`, `gcp-metadata`, `do-metadata` |
-| Credential & File Leaks | [Credential Leaks](credential-leaks) | `env-file`, `git-config`, `aws-credentials`, `ssh-key`, ... |
+| Credential & File Leaks | [Credential Leaks](credential-leaks) | `env-file`, `env-file-variant`, `git-config`, `git-credentials`, `password-store-leak`, `registry-token-leak`, `aws-credentials`, `ssh-key`, `vite-file-read`, ... |
 | REST API IDOR | [REST API](rest-api) | `rest-api-idor-users`, `rest-api-idor-accounts`, ... |
-| SharePoint, ColdFusion, Langflow, Metabase, N-central & co. | [Other Services](other-services) | `sharepoint-toolpane`, `coldfusion-admin`, `langflow-apikey`, `metabase-sqli`, `nable-ncentral-auth`, `apache-solr`, `jenkins-script`, `h2-console`, `grafana`, ... |
+| SharePoint, ColdFusion, Langflow, Metabase, N-central, vCenter & co. | [Other Services](other-services) | `sharepoint-toolpane`, `coldfusion-admin`, `langflow-apikey`, `metabase-sqli`, `nable-ncentral-auth`, `vmware-vcenter-session`, `apache-solr`, `jenkins-script`, `h2-console`, `grafana`, ... |
 | Log4Shell | [Log4Shell](log4shell) | `log4shell` |
