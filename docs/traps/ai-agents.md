@@ -38,6 +38,8 @@ The scanner is speaking the protocol and waiting to see whether something answer
 {: .note }
 > If you run a real MCP server, any `POST /mcp` from an address you do not recognise is pure reconnaissance. Confirm it requires authentication and is not reachable from the internet.
 
+Since **2026-09-02** there is a KEV entry that makes this concrete: [CVE-2026-59822](https://nvd.nist.gov/vuln/detail/CVE-2026-59822) is an authentication bypass in the LiteLLM proxy's MCP Streamable HTTP endpoint, where a fabricated `Authorization` header was enough to reach every configured MCP tool. The `/mcp` probe is answered here; the LiteLLM management surface behind it has [its own traps](supply-chain#litellm-proxy-).
+
 ---
 
 ## AI assistant configuration 🍯
@@ -101,6 +103,7 @@ The trap only fires when a query value actually references a metadata address (`
 
 ## Related
 
+- [Supply Chain & AI Gateways](supply-chain) — the LiteLLM proxy management surface (`/key/*`, `/model/info`) and JFrog Artifactory
 - [Langflow](other-services#langflow--ai-agent-platforms-) — the AI agent platform traps, including the `auto_login` bypass
 - [Cloud Metadata](cloud-metadata) — the direct `/latest/meta-data` and `/computeMetadata/v1` traps
 - [Honeytokens](../honeytokens) — how the `hp_live_*` tokens work and what happens on reuse
