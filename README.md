@@ -1,6 +1,6 @@
 # 🍯 HTTP Honeypot
 
-A high-interaction HTTP honeypot written in **Go**. It simulates **90+ real attack surfaces**, tarpits every request with a cryptographically random delay, embeds **honeytokens** in fake responses to detect credential reuse, and automatically reports attackers to **AbuseIPDB**.
+A high-interaction HTTP honeypot written in **Go**. It simulates **100+ real attack surfaces**, tarpits every request with a cryptographically random delay, embeds **honeytokens** in fake responses to detect credential reuse, and automatically reports attackers to **AbuseIPDB**.
 
 📖 **Full documentation:** https://andreaskasper.github.io/http-honeypot/
 
@@ -8,7 +8,7 @@ A high-interaction HTTP honeypot written in **Go**. It simulates **90+ real atta
 
 ## Features
 
-- 🎣 **90+ attack traps** — Spring Actuator, WordPress, Exchange/OWA, SharePoint, ColdFusion, Citrix NetScaler, PAN-OS GlobalProtect, Fortinet, Kemp LoadMaster, VMware vCenter, Kubernetes, Docker API, AWS/GCP metadata, Git leaks, phpMyAdmin, Jenkins, Confluence, Metabase, Langflow, MCP/AI-agent recon, N-able N-central, developer credential stores, web shells, and more
+- 🎣 **100+ attack traps** — Spring Actuator, WordPress, Exchange/OWA, SharePoint, ColdFusion, Citrix NetScaler, PAN-OS GlobalProtect, Fortinet, Kemp LoadMaster, VMware vCenter, JFrog Artifactory, Kubernetes, Docker API, AWS/GCP metadata, Git leaks, phpMyAdmin, Jenkins, Confluence, Metabase, Langflow, LiteLLM, MCP/AI-agent recon, N-able N-central, developer credential stores, web shells, and more
 - 🍯 **Honeytokens** — IP-specific fake API keys (`hp_live_*`) embedded in responses; detected and flagged with a `honeytoken_used` webhook event when an attacker reuses them
 - 🚀 **Dynamic response webhook** — Return custom content for unknown URLs via `WEBHOOK_NEW_URL` with caching
 - 🚫 **AbuseIPDB integration** — automatically reports attacking IPs with configurable per-IP cooldown
@@ -191,6 +191,10 @@ Tokens appear in:
 - `/p/u/doAuthentication.do` (CitrixBleed 2) → fake leaked memory in `<InitialValue>`
 - `/global-protect/getconfig.esp` (PAN-OS) → `<portal-userauthcookie>`
 - `/rest/com/vmware/cis/session` (vCenter) → the session id in `value`
+- `/access/api/v1/tokens` (Artifactory, CVE-2026-82329) → `access_token`
+- `/key/generate` (LiteLLM) → the minted virtual `key`
+- `/key/info` (LiteLLM) → `keys[].token`
+- `/model/info` (LiteLLM) → the upstream `litellm_params.api_key`
 - `/.claude/mcp.json` and friends → `env.GITHUB_PERSONAL_ACCESS_TOKEN`
 - `/.claude/.credentials.json` → `claudeAiOauth.accessToken`
 - `/api/auth/authenticate` (N-central) → `tokens.access.token`
@@ -270,6 +274,7 @@ For honeytoken reuse events, `event` is `"honeytoken_used"` and `is_honeytoken_u
 | Kemp LoadMaster | `loadmaster-api` |
 | N-able N-central 🍯 | `nable-ncentral-auth`, `nable-ncentral-soap`, `nable-ncentral-scan` |
 | VMware vCenter 🍯 | `vmware-vcenter-sdk`, `vmware-vcenter-session`, `vmware-vcenter-websso`, `vmware-vcenter-scan` |
+| JFrog Artifactory 🍯 | `artifactory-token-mint`, `artifactory-system`, `artifactory-scan` |
 | Kubernetes | `k8s-pods`, `k8s-secrets` |
 | Docker API | `docker-api` |
 | Grafana | `grafana` |
@@ -281,6 +286,7 @@ For honeytoken reuse events, `event` is `"honeytoken_used"` and `is_honeytoken_u
 | Routers / legacy | `fritzbox`, `admin-config`, `bag2`, `config-getuser` |
 | Cloud Metadata | `aws-metadata`, `gcp-metadata`, `do-metadata` |
 | AI / LLM tooling 🍯 | `langflow-rce`, `langflow-autologin`, `langflow-apikey`, `langflow-scan` |
+| LiteLLM proxy 🍯 | `litellm-key-generate`, `litellm-key-info`, `litellm-model-info`, `litellm-scan` |
 | AI agents / MCP 🍯 | `mcp-server-probe`, `ai-assistant-config`, `ai-assistant-credentials`, `llm-openai-models`, `ollama-tags`, `ssrf-metadata-probe` |
 | REST API IDOR 🍯 | `rest-api-idor-users/accounts/admin/customers/employees` |
 | Credential leaks 🍯 | `env-file`, `env-file-variant`, `aws-credentials`, `htpasswd`, `ssh-key` |
