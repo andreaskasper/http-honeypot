@@ -411,6 +411,19 @@ func handleRoutes(w http.ResponseWriter, r *http.Request, info *HoneypotRequest)
 		return
 	}
 
+	/* ── Software supply chain: JFrog Artifactory / LiteLLM proxy ─────── */
+	// artifactoryTrap has to run before the edge-appliance block below:
+	// loadMasterTrap claims the whole of /access/, and Artifactory's token
+	// endpoint is /access/api/v1/tokens. Only the /access/api/ subtree is
+	// taken here, so the rest of /access/ still reaches LoadMaster.
+	// litellmTrap rides along: none of its management paths (/key/*,
+	// /model/info, /user/info, /spend/*) is claimed anywhere else, and the
+	// bare /mcp and /v1/models probes are answered by aiAgentTrap further
+	// down and keep their own tags.
+	if artifactoryTrap(w, r, info) || litellmTrap(w, r, info) {
+		return
+	}
+
 	/* ── Edge appliances: Citrix NetScaler / GlobalProtect / LoadMaster ── */
 	// Placed after the traversal/exact-match blocks so those keep their tags;
 	// each helper returns true only if it answered the request. vCenterTrap
