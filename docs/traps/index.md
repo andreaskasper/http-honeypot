@@ -6,7 +6,7 @@ has_children: true
 
 # Attack Traps
 
-The honeypot simulates **90+ real attack surfaces** that are actively scanned on the public internet every day. Each trap responds with convincing fake data — the same response format a real vulnerable server would return — to keep scanners engaged and wasting time.
+The honeypot simulates **100+ real attack surfaces** that are actively scanned on the public internet every day. Each trap responds with convincing fake data — the same response format a real vulnerable server would return — to keep scanners engaged and wasting time.
 
 Every matched trap sets an `attack_tag` in the JSON log and webhook payload, letting you route and analyse by attack type.
 
@@ -19,6 +19,7 @@ Every matched trap sets an `attack_tag` in the JSON log and webhook payload, let
 | Microsoft Exchange | [Exchange](exchange) | `owa-login`, `exchange-ews`, `exchange-proxylogon` |
 | Edge Appliances & VPN | [VPN](vpn) | `fortinet-fgt`, `sonicwall-vpn`, `pulse-secure`, `cisco-asa-vpn`, `citrix-netscaler-*`, `panos-globalprotect-*`, `loadmaster-api` |
 | AI Agents & MCP | [AI Agents & MCP](ai-agents) | `mcp-server-probe`, `ai-assistant-config`, `ai-assistant-credentials`, `llm-openai-models`, `ollama-tags`, `ssrf-metadata-probe` |
+| Supply Chain & AI Gateways | [Supply Chain & AI Gateways](supply-chain) | `artifactory-token-mint`, `artifactory-system`, `artifactory-scan`, `litellm-key-generate`, `litellm-key-info`, `litellm-model-info`, `litellm-scan` |
 | Kubernetes & Docker | [Kubernetes & Docker](kubernetes-docker) | `k8s-pods`, `k8s-secrets`, `docker-api` |
 | Cloud Metadata | [Cloud Metadata](cloud-metadata) | `aws-metadata`, `gcp-metadata`, `do-metadata` |
 | Credential & File Leaks | [Credential Leaks](credential-leaks) | `env-file`, `env-file-variant`, `git-config`, `git-credentials`, `password-store-leak`, `registry-token-leak`, `aws-credentials`, `ssh-key`, `vite-file-read`, ... |
