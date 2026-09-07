@@ -30,7 +30,8 @@ The honeypot listens on port 80 and pretends to be a real vulnerable web server.
 
 | Feature | Details |
 |---|---|
-| 🎣 **75+ attack traps** | Spring, WordPress, Exchange, SharePoint, ColdFusion, Citrix NetScaler, PAN-OS GlobalProtect, Fortinet, K8s, Docker, AWS/GCP metadata, Langflow, Git leaks, web shells, and more |
+| 🎣 **100+ attack traps** | Spring, WordPress, Exchange, SharePoint, ColdFusion, Citrix NetScaler, PAN-OS GlobalProtect, Fortinet, Kemp LoadMaster, VMware vCenter, JFrog Artifactory, K8s, Docker, AWS/GCP metadata, Metabase, Langflow, LiteLLM, N-able N-central, MCP/AI-agent recon, Git leaks, web shells, and more |
+| 🍯 **Honeytokens** | IP-specific fake API keys (`hp_live_*`) embedded in credential-shaped responses; reuse fires a separate `honeytoken_used` event |
 | 🐢 **Tar-pit** | `crypto/rand` delay per request; prevents timing fingerprinting |
 | 🏷️ **attack_tag** | Every matched trap produces a machine-readable tag for webhook routing |
 | 🔍 **Log4Shell** | Scans all request headers + query string for `${jndi:` payloads |
@@ -39,6 +40,7 @@ The honeypot listens on port 80 and pretends to be a real vulnerable web server.
 | 🔇 **LOG_DISABLED** | Disable all file I/O while keeping Pushover + webhook active |
 | 🔔 **Pushover** | Country-based mobile push; throttled to once per hour |
 | 🔗 **Webhook** | POST JSON to any URL; `X-Honeypot-Secret` header for auth |
+| 🚫 **AbuseIPDB** | Async reporting with a per-IP cooldown; category 14 + 21 for scanner-style tags |
 | 📊 **Prometheus** | `/metrics` endpoint with HTTP Basic Auth; `METRICS_DISABLED` option |
 | 🐳 **Tiny image** | ~15 MB via multi-stage build (Go 1.25 → Alpine 3.21) |
 
