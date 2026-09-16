@@ -7,7 +7,7 @@ nav_order: 12
 # Software Supply Chain & AI Gateway Traps 🍯
 {: .no_toc }
 
-Two surfaces that sit in the middle of something and hold every credential passing through it: the binary repository in the middle of a build, and the model gateway in the middle of an inference pipeline. Both were added to the CISA KEV catalog on **2026-09-02**, and both are worth more to an attacker than the host they run on.
+Three surfaces that sit in the middle of something and hold every credential passing through it: the binary repository in the middle of a build, the model gateway in the middle of an inference pipeline, and the DevOps platform that holds the source and the pipeline both. All three are worth more to an attacker than the host they run on, and all three were added to the CISA KEV catalog within ten days of each other in September 2026.
 
 ## Table of contents
 {: .no_toc .text-delta }
@@ -89,9 +89,54 @@ A `401` in LiteLLM's own error shape. `liveliness` is LiteLLM's own spelling, so
 
 ---
 
+## GitLab 🍯
+
+**Tags:** `gitlab-commits-traversal`, `gitlab-api-scan`, `gitlab-login`, `gitlab-scan`
+
+A self-managed GitLab is the whole pipeline in one box: source, deploy tokens, CI/CD variables, registry credentials and the Rails secrets that sign every session. Reading arbitrary files off one is not a step towards the prize, it *is* the prize.
+
+[CVE-2026-85706](https://nvd.nist.gov/vuln/detail/CVE-2026-85706) — **CVSS 10.0** — is a path traversal in the repository commits API. Improper path confinement combined with missing authentication enforcement lets an unauthenticated caller read any file the GitLab process can read, in a single HTTP request. GitLab shipped 19.3.2, 19.2.6 and 19.1.8 on **2026-09-10**; watchTowr saw internet-wide probes from **06:00 UTC on 2026-09-11** and CISA added it to KEV the same day, with a federal remediation deadline of **2026-09-14**. Four days from patch to deadline is what indiscriminate scanning looks like.
+
+### `/api/v4/projects/<id>/repository/commits` 🍯
+
+**Tag:** `gitlab-commits-traversal`
+
+The exact URI watchTowr told defenders to hunt for — POST requests carrying a `file.path` parameter. The trap answers the whole subtree regardless of method, because a scanner confirming the endpoint exists probes it with `GET` first and would otherwise walk away on a 404.
+
+The response serves what an attacker actually reaches for on a self-managed instance: `/etc/gitlab/gitlab.rb`, with a database password, an SMTP password and an **IP-specific honeytoken** standing in for `initial_root_password`. Replaying that value — here or anywhere else — is caught by `detectHoneytokenInRequest`.
+
+{: .note }
+> The commit envelope wrapped around the fake file content is a best-effort reconstruction of the success shape; the honeypot never parses a request body, so it cannot tailor the response to the `file.path` actually asked for. The bait inside the envelope is what matters, and a scanner grepping a response for credential-shaped strings finds it either way.
+
+### `/api/v4/version`, `/api/v4/metadata`, `/api/v4/projects`, `/api/v4/groups`, `/api/v4/runners/all`, `/api/v4/personal_access_tokens`
+
+**Tag:** `gitlab-api-scan`
+
+The unauthenticated fingerprinting endpoints, answered with GitLab's own `{"message":"401 Unauthorized"}` envelope and an `X-Request-Id`. Because the tag contains `scan`, these report to AbuseIPDB as **category 14 + 21**.
+
+### `/users/sign_in`
+
+**Tag:** `gitlab-login`
+
+A GitLab CE sign-in page with a version string in the footer — the page a scanner reads to decide the host is a GitLab worth a payload.
+
+### `/-/health`, `/-/liveness`, `/-/readiness`
+
+**Tag:** `gitlab-scan`
+
+GitLab's own `/-/` spelling, so an uptime monitor pointed at this host cannot reach them by accident. Same reasoning as LiteLLM's `/health/liveliness` above.
+
+{: .note }
+> **Deliberately not claimed:** `/explore`, `/help` and `/users/password/new`. All three are plain Rails or Devise defaults that other applications serve too. A mislabelled AbuseIPDB report is worse than a missed one.
+>
+> **Ordering:** `restAPITrap` is dispatched much further up and matches `/api/v<N>/(users|accounts|admin|customers|employees)/<digits>`, so `/api/v4/users/5` keeps its `rest-api-idor-users` tag and never reaches this trap. That is the right outcome — a bare numbered-user probe is IDOR scanning, not GitLab exploitation.
+
+---
+
 ## Related
 
 - [AI Agents & MCP](ai-agents) — the MCP handshake, assistant config files and unauthenticated LLM endpoints
-- [Other Services](other-services) — Langflow, Metabase, N-central, vCenter and the rest
+- [Other Services](other-services) — Langflow, Metabase, N-central, vCenter, LoadMaster and the rest
+- [Edge Appliances & VPN](vpn) — NetScaler, GlobalProtect and the Cisco FMC management console
 - [Honeytokens](../honeytokens) — how the `hp_live_*` tokens work and what happens on reuse
 - [AbuseIPDB](../abuseipdb) — why `*-scan` tags report as category 14 + 21

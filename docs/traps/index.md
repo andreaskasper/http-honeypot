@@ -17,12 +17,12 @@ Every matched trap sets an `attack_tag` in the JSON log and webhook payload, let
 | Spring Boot Actuator | [Spring Boot](spring-boot) | `spring-actuator-*` |
 | WordPress & CMS | [CMS](cms) | `wp-login`, `xmlrpc`, `joomla-admin`, ... |
 | Microsoft Exchange | [Exchange](exchange) | `owa-login`, `exchange-ews`, `exchange-proxylogon` |
-| Edge Appliances & VPN | [VPN](vpn) | `fortinet-fgt`, `sonicwall-vpn`, `pulse-secure`, `cisco-asa-vpn`, `citrix-netscaler-*`, `panos-globalprotect-*`, `loadmaster-api` |
+| Edge Appliances & VPN | [Edge Appliances & VPN](vpn) | `fortinet-fgt`, `sonicwall-vpn`, `pulse-secure`, `cisco-asa-vpn`, `citrix-netscaler-*`, `panos-globalprotect-*`, `cisco-fmc-*` |
 | AI Agents & MCP | [AI Agents & MCP](ai-agents) | `mcp-server-probe`, `ai-assistant-config`, `ai-assistant-credentials`, `llm-openai-models`, `ollama-tags`, `ssrf-metadata-probe` |
-| Supply Chain & AI Gateways | [Supply Chain & AI Gateways](supply-chain) | `artifactory-token-mint`, `artifactory-system`, `artifactory-scan`, `litellm-key-generate`, `litellm-key-info`, `litellm-model-info`, `litellm-scan` |
+| Supply Chain & AI Gateways | [Supply Chain & AI Gateways](supply-chain) | `artifactory-token-mint`, `artifactory-system`, `artifactory-scan`, `litellm-key-generate`, `litellm-key-info`, `litellm-model-info`, `litellm-scan`, `gitlab-commits-traversal`, `gitlab-api-scan`, `gitlab-login`, `gitlab-scan` |
 | Kubernetes & Docker | [Kubernetes & Docker](kubernetes-docker) | `k8s-pods`, `k8s-secrets`, `docker-api` |
 | Cloud Metadata | [Cloud Metadata](cloud-metadata) | `aws-metadata`, `gcp-metadata`, `do-metadata` |
 | Credential & File Leaks | [Credential Leaks](credential-leaks) | `env-file`, `env-file-variant`, `git-config`, `git-credentials`, `password-store-leak`, `registry-token-leak`, `aws-credentials`, `ssh-key`, `vite-file-read`, ... |
 | REST API IDOR | [REST API](rest-api) | `rest-api-idor-users`, `rest-api-idor-accounts`, ... |
-| SharePoint, ColdFusion, Langflow, Metabase, N-central, vCenter & co. | [Other Services](other-services) | `sharepoint-toolpane`, `coldfusion-admin`, `langflow-apikey`, `metabase-sqli`, `nable-ncentral-auth`, `vmware-vcenter-session`, `apache-solr`, `jenkins-script`, `h2-console`, `grafana`, ... |
+| SharePoint, ColdFusion, Langflow, Metabase, N-central, vCenter, LoadMaster & co. | [Other Services](other-services) | `sharepoint-toolpane`, `coldfusion-admin`, `langflow-apikey`, `metabase-sqli`, `nable-ncentral-auth`, `vmware-vcenter-session`, `loadmaster-api`, `apache-solr`, `jenkins-script`, `h2-console`, `grafana`, ... |
 | Log4Shell | [Log4Shell](log4shell) | `log4shell` |
