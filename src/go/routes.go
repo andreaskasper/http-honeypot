@@ -411,7 +411,7 @@ func handleRoutes(w http.ResponseWriter, r *http.Request, info *HoneypotRequest)
 		return
 	}
 
-	/* ── Software supply chain: JFrog Artifactory / LiteLLM proxy ─────── */
+	/* ── Software supply chain: Artifactory / LiteLLM / GitLab ────────── */
 	// artifactoryTrap has to run before the edge-appliance block below:
 	// loadMasterTrap claims the whole of /access/, and Artifactory's token
 	// endpoint is /access/api/v1/tokens. Only the /access/api/ subtree is
@@ -420,17 +420,30 @@ func handleRoutes(w http.ResponseWriter, r *http.Request, info *HoneypotRequest)
 	// /model/info, /user/info, /spend/*) is claimed anywhere else, and the
 	// bare /mcp and /v1/models probes are answered by aiAgentTrap further
 	// down and keep their own tags.
-	if artifactoryTrap(w, r, info) || litellmTrap(w, r, info) {
+	// gitlabTrap is grouped here rather than ordered here — nothing above
+	// touches /api/v4/projects/, /users/sign_in or the /-/ probes. The one
+	// interaction worth stating: restAPITrap is dispatched much further up
+	// and matches /api/v<N>/(users|accounts|admin|customers|employees)/<id>,
+	// so /api/v4/users/5 keeps rest-api-idor-users and never reaches here.
+	// That is the right outcome; a bare numbered-user probe is IDOR scanning,
+	// not GitLab exploitation.
+	if artifactoryTrap(w, r, info) || litellmTrap(w, r, info) ||
+		gitlabTrap(w, r, info) {
 		return
 	}
 
-	/* ── Edge appliances: Citrix NetScaler / GlobalProtect / LoadMaster ── */
+	/* ── Edge appliances: NetScaler / GlobalProtect / LoadMaster / FMC ── */
 	// Placed after the traversal/exact-match blocks so those keep their tags;
 	// each helper returns true only if it answered the request. vCenterTrap
 	// joins them here: none of /sdk, /websso/, /rest/com/vmware/ or
 	// /vsphere-* is claimed anywhere above.
+	// ciscoFMCTrap goes last. None of its paths — /ui/login, /sajaxintf.cgi,
+	// /pjb.cgi, /help/about.cgi, /platinum/ and the /api/fmc_* subtrees — is
+	// claimed above it, and none lives under /cgi-bin/, so it does not
+	// collide with the cgi-scan prefix trap further down either.
 	if citrixNetScalerTrap(w, r, info) || globalProtectTrap(w, r, info) ||
-		loadMasterTrap(w, r, info) || vCenterTrap(w, r, info) {
+		loadMasterTrap(w, r, info) || vCenterTrap(w, r, info) ||
+		ciscoFMCTrap(w, r, info) {
 		return
 	}
 
