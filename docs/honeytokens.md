@@ -46,6 +46,8 @@ The `hp_live_` prefix is recognizable at a glance. The 20-hex suffix is determin
 
 ## Where tokens are embedded
 
+Unless the table says otherwise, the "field" is a field in the **response body**.
+
 | Trap | Field | Token used as |
 |---|---|---|
 | `/actuator/env` | `AWS_SECRET_ACCESS_KEY` | AWS secret key |
@@ -61,11 +63,21 @@ The `hp_live_` prefix is recognizable at a glance. The 20-hex suffix is determin
 | `/.claude/mcp.json` and friends | `env.GITHUB_PERSONAL_ACCESS_TOKEN` | GitHub PAT in an MCP server config |
 | `/.claude/.credentials.json` | `claudeAiOauth.accessToken` | AI assistant OAuth token |
 | `/api/auth/authenticate` | `tokens.access.token` | N-central admin bearer token |
+| `/access/api/v1/tokens` | `access_token` | Artifactory admin access token (CVE-2026-82329) |
+| `/key/generate` | `key` | LiteLLM virtual key |
+| `/key/info` | `keys[].token` | LiteLLM key listing |
+| `/model/info` | `litellm_params.api_key` | Upstream model-provider key |
+| `/api/v4/projects/*/repository/commits` | `gitlab_rails['initial_root_password']` inside the leaked `gitlab.rb` | GitLab root password (CVE-2026-85706) |
+| `/api/fmc_platform/v1/auth/generatetoken` | **response header** `X-auth-access-token` | Cisco FMC API access token (CVE-2026-20079) |
+| `/api/fmc_platform/v1/auth/generatetoken` | **response header** `X-auth-refresh-token` | Cisco FMC API refresh token |
 
 They all mimic the format of real credentials that automated scanners and credential-harvesting tools look for specifically.
 
 {: .note }
-> The Langflow, Metabase and N-central carriers sit on endpoints an attacker reaches through an **authentication bypass**. The bypass appears to succeed, the attacker replays the token on the next request, and `detectHoneytokenInRequest` catches it — so the whole chain is observable end to end.
+> The Langflow, Metabase, N-central, Artifactory, LiteLLM and FMC carriers sit on endpoints an attacker reaches through an **authentication bypass**. The bypass appears to succeed, the attacker replays the token on the next request, and `detectHoneytokenInRequest` catches it — so the whole chain is observable end to end.
+
+{: .note }
+> Cisco FMC is the first carrier that lives in a **response header** rather than a body, because that is where a real FMC puts the credential: the token endpoint answers `204 No Content` and returns nothing else. It gets two distinct tokens — one for `X-auth-access-token`, one for `X-auth-refresh-token` — so a replayed access token can be told apart from a replayed refresh token when the `honeytoken_used` event fires.
 
 ---
 
