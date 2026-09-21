@@ -276,13 +276,18 @@ func handleRoutes(w http.ResponseWriter, r *http.Request, info *HoneypotRequest)
 		return
 	}
 
-	/* ── 2026 attack surfaces: SharePoint / ColdFusion / Langflow / Metabase ── */
+	/* ── 2026 surfaces: SharePoint / ColdFusion / Kestra / Langflow / Metabase ── */
 	// Placed after the exact-match blocks above so /api/v1/pods and friends
 	// keep their own tags; each helper returns true only if it answered.
-	// metabaseTrap goes last of the four: it claims /api/database and
+	// metabaseTrap goes last of the five: it claims /api/database and
 	// /api/session/*, which nothing above touches.
+	// kestraTrap is dispatched before langflowTrap on purpose: Langflow claims
+	// the whole /api/v1/flows prefix, and /api/v1/flows/configs is a Kestra
+	// CVE-2026-49869 bypass attempt, not a Langflow probe. The bypass arm only
+	// matches an /api/ path ending in /configs, so nothing else changes hands.
 	if sharePointTrap(w, r, info) || coldFusionTrap(w, r, info) ||
-		langflowTrap(w, r, info) || metabaseTrap(w, r, info) {
+		kestraTrap(w, r, info) || langflowTrap(w, r, info) ||
+		metabaseTrap(w, r, info) {
 		return
 	}
 
@@ -432,18 +437,26 @@ func handleRoutes(w http.ResponseWriter, r *http.Request, info *HoneypotRequest)
 		return
 	}
 
-	/* ── Edge appliances: NetScaler / GlobalProtect / LoadMaster / FMC ── */
+	/* ── Edge appliances: NetScaler / GlobalProtect / LoadMaster / FMC / ISE ── */
 	// Placed after the traversal/exact-match blocks so those keep their tags;
 	// each helper returns true only if it answered the request. vCenterTrap
 	// joins them here: none of /sdk, /websso/, /rest/com/vmware/ or
 	// /vsphere-* is claimed anywhere above.
-	// ciscoFMCTrap goes last. None of its paths — /ui/login, /sajaxintf.cgi,
-	// /pjb.cgi, /help/about.cgi, /platinum/ and the /api/fmc_* subtrees — is
-	// claimed above it, and none lives under /cgi-bin/, so it does not
-	// collide with the cgi-scan prefix trap further down either.
+	// ciscoFMCTrap: none of its paths — /ui/login, /sajaxintf.cgi, /pjb.cgi,
+	// /help/about.cgi, /platinum/ and the /api/fmc_* subtrees — is claimed
+	// above it, and none lives under /cgi-bin/, so it does not collide with
+	// the cgi-scan prefix trap further down either.
+	// ciscoISETrap goes last. Nothing above claims /ers/,
+	// /admin/login.jsp, the /admin/API/mnt and /admin/API/NetworkAccessConfig
+	// subtrees, /pxgrid/control or the four ISE OpenAPI subtrees
+	// (/api/v1/deployment, /api/v1/system-certificate, /api/v1/trustsec,
+	// /api/v1/license). restAPITrap runs much further up and matches
+	// /api/v<N>/(users|accounts|admin|customers|employees)/<digits>, so
+	// /api/v1/admin/7 keeps its rest-api-idor-admin tag, which is right: a
+	// numbered-admin probe is IDOR scanning, not ISE exploitation.
 	if citrixNetScalerTrap(w, r, info) || globalProtectTrap(w, r, info) ||
 		loadMasterTrap(w, r, info) || vCenterTrap(w, r, info) ||
-		ciscoFMCTrap(w, r, info) {
+		ciscoFMCTrap(w, r, info) || ciscoISETrap(w, r, info) {
 		return
 	}
 
