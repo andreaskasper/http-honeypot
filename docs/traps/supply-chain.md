@@ -7,7 +7,7 @@ nav_order: 12
 # Software Supply Chain & AI Gateway Traps 🍯
 {: .no_toc }
 
-Three surfaces that sit in the middle of something and hold every credential passing through it: the binary repository in the middle of a build, the model gateway in the middle of an inference pipeline, and the DevOps platform that holds the source and the pipeline both. All three are worth more to an attacker than the host they run on, and all three were added to the CISA KEV catalog within ten days of each other in September 2026.
+Four surfaces that sit in the middle of something and hold every credential passing through it: the binary repository in the middle of a build, the model gateway in the middle of an inference pipeline, the DevOps platform that holds the source and the pipeline both, and the workflow orchestrator that runs the jobs and keeps the secrets they need. All four are worth more to an attacker than the host they run on, and all four were added to the CISA KEV catalog inside a fortnight in September 2026.
 
 ## Table of contents
 {: .no_toc .text-delta }
@@ -133,10 +133,54 @@ GitLab's own `/-/` spelling, so an uptime monitor pointed at this host cannot re
 
 ---
 
+## Kestra 🍯
+
+**Paths:** any `/api/` path ending in `/configs` (except the real `/api/v1/configs`), `/api/v1/configs`, `/api/v1/*/namespaces/*/kv/*`, the `/api/v1/main/` subtree and `/api/v1/instance`  
+**Tags:** `kestra-auth-bypass`, `kestra-scan`, `kestra-kv-read`
+
+Kestra is an open-source workflow orchestrator. It sits in the middle of a data platform and holds, in its namespace KV store, the credentials for everything its flows talk to: cloud accounts, warehouses, internal APIs.
+
+[CVE-2026-49869](https://nvd.nist.gov/vuln/detail/CVE-2026-49869) — **CVSS 10.0**, added to the CISA KEV catalog on **2026-09-02** — is an authentication bypass that becomes unauthenticated OS command execution. Kestra's `AuthenticationFilter` exempted the public configuration endpoint from Basic Auth with `request.getPath().endsWith("/configs")`. Kestra also accepts a caller-controlled flow or namespace identifier in that same path position, so a flow named `configs` produces an API path that ends with the exempted string and skips authentication entirely. Past the filter, the attacker creates and runs a flow; the shell script plugin ships enabled by default, so the flow runs as root inside the worker container. Fixed in **1.0.45** and **1.3.21**.
+
+The lesson generalises past this product: authorization should be a decision about a matched route and a caller, not about the spelling of a URL.
+
+### Any `/api/…/configs` that is not `/api/v1/configs` 🍯
+
+**Tag:** `kestra-auth-bypass`
+
+The suffix the filter trusted, in a position the caller controls. That is the whole exploit signature, and matching on it is deliberately narrow — an `/api/` path ending in `/configs` that is not the real endpoint is the attack and nothing else.
+
+The response is a fabricated flow execution in `SUCCESS` state whose shell task "output" carries an IP-specific [honeytoken](../honeytokens) as `KESTRA_API_TOKEN` — standing in for the environment a real worker would have leaked to the injected command. Replaying that value, here or anywhere else, is caught by `detectHoneytokenInRequest`.
+
+### `/api/v1/configs`
+
+**Tag:** `kestra-scan`
+
+The genuinely public configuration endpoint, and the fingerprint a scanner reads first. Only Kestra serves that exact path, so a probe here is not an accident. The version reported is below the fixed release, which is what keeps a scanner talking instead of moving on.
+
+### `/api/v1/*/namespaces/*/kv/*` 🍯
+
+**Tag:** `kestra-kv-read`
+
+The namespace KV store — where a real deployment keeps the secrets its flows use, and the first thing an attacker reads after the bypass. The returned `value` is an IP-specific honeytoken.
+
+### `/api/v1/main/*`, `/api/v1/instance`
+
+**Tag:** `kestra-scan`
+
+The tenant-scoped management surface, answered with Micronaut's `401` envelope. `/api/v1/main/` is Kestra's own spelling and is claimed nowhere else in the honeypot.
+
+{: .note }
+> **Deliberately not claimed:** the bare `/ui/` shell — `ciscoFMCTrap` owns `/ui/login`, and a Kestra UI probe is not worth the collision — and the unversioned `/api/v1/flows` prefix, which belongs to Langflow.
+>
+> **Ordering:** this trap is dispatched **before** `langflowTrap`, which claims the whole `/api/v1/flows` prefix. `/api/v1/flows/configs` is a Kestra bypass attempt rather than a Langflow probe, and the bypass arm is narrow enough that everything else Langflow owns stays with it.
+
+---
+
 ## Related
 
 - [AI Agents & MCP](ai-agents) — the MCP handshake, assistant config files and unauthenticated LLM endpoints
 - [Other Services](other-services) — Langflow, Metabase, N-central, vCenter, LoadMaster and the rest
-- [Edge Appliances & VPN](vpn) — NetScaler, GlobalProtect and the Cisco FMC management console
+- [Edge Appliances & VPN](vpn) — NetScaler, GlobalProtect and the Cisco FMC and ISE management consoles
 - [Honeytokens](../honeytokens) — how the `hp_live_*` tokens work and what happens on reuse
 - [AbuseIPDB](../abuseipdb) — why `*-scan` tags report as category 14 + 21
