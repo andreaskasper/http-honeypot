@@ -17,9 +17,9 @@ Every matched trap sets an `attack_tag` in the JSON log and webhook payload, let
 | Spring Boot Actuator | [Spring Boot](spring-boot) | `spring-actuator-*` |
 | WordPress & CMS | [CMS](cms) | `wp-login`, `xmlrpc`, `joomla-admin`, ... |
 | Microsoft Exchange | [Exchange](exchange) | `owa-login`, `exchange-ews`, `exchange-proxylogon` |
-| Edge Appliances & VPN | [Edge Appliances & VPN](vpn) | `fortinet-fgt`, `sonicwall-vpn`, `pulse-secure`, `cisco-asa-vpn`, `citrix-netscaler-*`, `panos-globalprotect-*`, `cisco-fmc-*` |
+| Edge Appliances & VPN | [Edge Appliances & VPN](vpn) | `fortinet-fgt`, `sonicwall-vpn`, `pulse-secure`, `cisco-asa-vpn`, `citrix-netscaler-*`, `panos-globalprotect-*`, `cisco-fmc-*`, `cisco-ise-*` |
 | AI Agents & MCP | [AI Agents & MCP](ai-agents) | `mcp-server-probe`, `ai-assistant-config`, `ai-assistant-credentials`, `llm-openai-models`, `ollama-tags`, `ssrf-metadata-probe` |
-| Supply Chain & AI Gateways | [Supply Chain & AI Gateways](supply-chain) | `artifactory-token-mint`, `artifactory-system`, `artifactory-scan`, `litellm-key-generate`, `litellm-key-info`, `litellm-model-info`, `litellm-scan`, `gitlab-commits-traversal`, `gitlab-api-scan`, `gitlab-login`, `gitlab-scan` |
+| Supply Chain & AI Gateways | [Supply Chain & AI Gateways](supply-chain) | `artifactory-token-mint`, `artifactory-system`, `artifactory-scan`, `litellm-key-generate`, `litellm-key-info`, `litellm-model-info`, `litellm-scan`, `gitlab-commits-traversal`, `gitlab-api-scan`, `gitlab-login`, `gitlab-scan`, `kestra-auth-bypass`, `kestra-kv-read`, `kestra-scan` |
 | Kubernetes & Docker | [Kubernetes & Docker](kubernetes-docker) | `k8s-pods`, `k8s-secrets`, `docker-api` |
 | Cloud Metadata | [Cloud Metadata](cloud-metadata) | `aws-metadata`, `gcp-metadata`, `do-metadata` |
 | Credential & File Leaks | [Credential Leaks](credential-leaks) | `env-file`, `env-file-variant`, `git-config`, `git-credentials`, `password-store-leak`, `registry-token-leak`, `aws-credentials`, `ssh-key`, `vite-file-read`, ... |
