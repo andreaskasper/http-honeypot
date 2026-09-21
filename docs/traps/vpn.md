@@ -7,7 +7,7 @@ nav_order: 4
 # Edge Appliance & VPN Traps
 {: .no_toc }
 
-VPN and remote-access appliances are a top initial-access vector. Nation-state actors and ransomware groups routinely scan for known-vulnerable VPN endpoints before major campaigns. The same is true of the consoles that manage those appliances, which is why a firewall management centre now sits on this page too.
+VPN and remote-access appliances are a top initial-access vector. Nation-state actors and ransomware groups routinely scan for known-vulnerable VPN endpoints before major campaigns. The same is true of the consoles that manage those appliances, which is why a firewall management centre and an identity/NAC control plane now sit on this page too.
 
 ---
 
@@ -106,3 +106,54 @@ Answered the way a real appliance answers them: a `302` back to `/ui/login` with
 
 {: .note }
 > The bare `/login.cgi` is **deliberately not claimed**, even though it appears in the published chain. Routers, NAS boxes and DVRs serve `/login.cgi` too, and a probe of one of those should not be reported to AbuseIPDB as a Cisco FMC attack. The same call was made for LoadMaster's `/progs/` paths and Metabase's `/api/health`: cover less rather than guess.
+
+---
+
+## Cisco Identity Services Engine 🍯
+
+**Paths:** `/admin/login.jsp`, `/admin/LoginAction.do`, `/ers/config/networkdevice*`, `/ers/config/internaluser*`, `/ers/config/adminuser*`, `/ers/sdk` and the rest of `/ers/`, `/admin/API/mnt/*`, `/admin/API/NetworkAccessConfig/*`, `/pxgrid/control/*`, and the `/api/v1/deployment`, `/api/v1/system-certificate`, `/api/v1/trustsec` and `/api/v1/license` subtrees  
+**Tags:** `cisco-ise-ers-device`, `cisco-ise-ers-identity`, `cisco-ise-openapi`, `cisco-ise-login`, `cisco-ise-scan`
+
+ISE is not an appliance in front of the network — it is the identity and network-access control plane that decides who and what gets onto it. Root on ISE means rewriting authorization policy, extracting stored credentials and reaching every segment that trusts the box. It also stores the RADIUS shared secret of every switch, wireless controller and firewall it fronts.
+
+[CVE-2026-76460](https://nvd.nist.gov/vuln/detail/CVE-2026-76460) is a **CVSS 10.0** authentication bypass (CWE-648, incorrect use of privileged APIs): insufficient authentication control on an API endpoint, so a crafted request bypasses the web-based management interface, and Cisco states exploitation may yield command execution as root. Cisco published advisory `cisco-sa-ISE-ABP-VNSW7Tn5` on **2026-09-16** and confirmed active exploitation the same day; CISA added it to KEV that day too, with a federal remediation deadline of **2026-09-19**. Products are affected regardless of configuration and there is no workaround.
+
+The same September advisory set brought a REST API SQL injection ([CVE-2026-20284](https://nvd.nist.gov/vuln/detail/CVE-2026-20284)), an IPsec Open API command injection ([CVE-2026-20283](https://nvd.nist.gov/vuln/detail/CVE-2026-20283)) and an authenticated write primitive ([CVE-2026-20282](https://nvd.nist.gov/vuln/detail/CVE-2026-20282)), so the whole API surface is being swept at once rather than one endpoint at a time.
+
+{: .note }
+> Cisco deliberately withheld the vulnerable endpoint while exploitation was ongoing, and this trap does not pretend to know it. What it answers is the **documented** ISE API surface — the paths an operator would scan for and an attacker would walk once the bypass has worked.
+
+### `/ers/config/networkdevice` 🍯
+
+**Tag:** `cisco-ise-ers-device`
+
+An ERS network-device object carries the RADIUS shared secret in `authenticationSettings.radiusSharedSecret`. That is the single most reusable credential on the box — it authenticates every switch and firewall in the estate — so that field is an IP-specific [honeytoken](../honeytokens).
+
+### `/ers/config/internaluser`, `/ers/config/adminuser` 🍯
+
+**Tag:** `cisco-ise-ers-identity`
+
+The local identity store, returned in ISE's `{"InternalUser":{...}}` shape with the `password` field honeytokened.
+
+### `/api/v1/deployment`, `/api/v1/system-certificate`, `/api/v1/trustsec`, `/api/v1/license`
+
+**Tag:** `cisco-ise-openapi`
+
+The ISE OpenAPI subtrees. Reaching these unauthenticated *is* the bypass rather than recon, so they answer **200** with a deployment-node list — a scanner that gets a node inventory out of them believes the bypass worked and keeps going.
+
+### `/admin/login.jsp`, `/admin/LoginAction.do`
+
+**Tag:** `cisco-ise-login`
+
+The page an unauthenticated caller is bounced to, with a version string a scanner can read to confirm the product.
+
+### `/ers/sdk`, `/admin/API/mnt/*`, `/admin/API/NetworkAccessConfig/*`, `/pxgrid/control/*`
+
+**Tag:** `cisco-ise-scan`
+
+Answered with ISE's own `ERSResponse` error envelope and a `401`. Because the tag contains `scan`, these report to AbuseIPDB as **category 14 + 21**.
+
+{: .note }
+> **Deliberately not claimed:** the bare `/admin/` and `/portal/` paths, and the rest of `/admin/API/`. All three are served by a great many products that are not ISE. Same call as `/login.cgi` on the FMC trap above, `/progs/` on LoadMaster and `/api/health` on Metabase: cover less rather than guess.
+>
+> **Ordering:** `restAPITrap` runs much earlier and matches `/api/v<N>/(users|accounts|admin|customers|employees)/<digits>`, so `/api/v1/admin/7` keeps its `rest-api-idor-admin` tag and never reaches this trap. That is the right outcome — a numbered-admin probe is IDOR scanning, not ISE exploitation.
