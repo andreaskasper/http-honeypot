@@ -58,7 +58,7 @@ func TestRouteTags(t *testing.T) {
 		want string // "" means the request must not be tagged as an attack
 		why  string
 	}{
-		// ── Kestra, CVE-2026-49869 ────────────────────────────────────────
+		// ── Kestra, CVE-2026-49869 ────────────────────────────────────────────
 		{"/api/v1/flows/company.team/configs", "kestra-auth-bypass",
 			"the bypass shape: an /api/ path ending in /configs"},
 		{"/api/v1/main/flows/configs", "kestra-auth-bypass",
@@ -70,7 +70,7 @@ func TestRouteTags(t *testing.T) {
 		{"/api/v1/main/executions", "kestra-scan", "tenant management surface"},
 		{"/api/v1/instance", "kestra-scan", "instance description"},
 
-		// ── Cisco ISE, CVE-2026-76460 ─────────────────────────────────────
+		// ── Cisco ISE, CVE-2026-76460 ─────────────────────────────────────────────
 		{"/ers/config/networkdevice", "cisco-ise-ers-device",
 			"RADIUS shared secret carrier"},
 		{"/ers/config/internaluser/1", "cisco-ise-ers-identity",
@@ -82,6 +82,19 @@ func TestRouteTags(t *testing.T) {
 		{"/ers/sdk", "cisco-ise-scan", ""},
 		{"/admin/API/mnt/Session/ActiveList", "cisco-ise-scan", "MnT API"},
 		{"/pxgrid/control/AccountActivate", "cisco-ise-scan", ""},
+
+		// ── Cisco SD-WAN Manager, CVE-2026-76504 ─────────────────────────────────────
+		{"/j_security_check", "cisco-sdwan-authbypass", "the bypass target"},
+		{"/%6a_security_check", "cisco-sdwan-authbypass",
+			"Cisco's own example of the encoded spelling; Go decodes it first"},
+		{"/dataservice/client/token", "cisco-sdwan-token", "CSRF token carrier"},
+		{"/dataservice/device", "cisco-sdwan-api", "REST API opened by the bypass"},
+
+		// ── WSO2 API Manager, CVE-2026-5430 ─────────────────────────────────────────
+		{"/client-registration/v0.17/register", "wso2-apim-dcr", "consumer secret carrier"},
+		{"/api/am/publisher/v4/apis", "wso2-apim-api", "endpoint password carrier"},
+		{"/carbon/admin/login.jsp", "wso2-carbon-login", "product fingerprint"},
+		{"/oauth2/token", "", "generic name, deliberately unclaimed"},
 
 		// ── Neighbours the two new traps could have shadowed ───────────────
 		{"/api/v1/flows", "langflow-scan",
@@ -105,7 +118,7 @@ func TestRouteTags(t *testing.T) {
 		{"/api/database", "metabase-database-list", ""},
 		{"/cgi-bin/luci", "cgi-scan", ""},
 
-		// ── Must never be reported to AbuseIPDB ───────────────────────────
+		// ── Must never be reported to AbuseIPDB ───────────────────────────────────────
 		{"/", "", "the landing page"},
 		{"/robots.txt", "", ""},
 		{"/favicon.ico", "", ""},
@@ -141,6 +154,9 @@ func TestHoneytokensReachTheClient(t *testing.T) {
 		"/api/v4/projects/1/repository/commits",  // GitLab gitlab.rb
 		"/access/api/v1/tokens",                  // Artifactory access_token
 		"/.env",                                  // STRIPE_SECRET_KEY
+		"/dataservice/client/token",              // SD-WAN CSRF token
+		"/client-registration/v0.17/register",    // WSO2 clientSecret
+		"/api/am/publisher/v4/apis",              // WSO2 endpoint password
 	} {
 		t.Run(path, func(t *testing.T) {
 			_, w := route(t, http.MethodGet, path)
@@ -176,7 +192,7 @@ func TestHoneytokensAreIPSpecific(t *testing.T) {
 // the reverse — is invisible from inside the honeypot.
 func TestScanTagsPickCategory14(t *testing.T) {
 	scanners := []string{"kestra-scan", "cisco-ise-scan", "gitlab-api-scan", "cgi-scan"}
-	targeted := []string{"kestra-auth-bypass", "kestra-kv-read",
+	targeted := []string{"cisco-sdwan-authbypass", "wso2-apim-api", "kestra-auth-bypass", "kestra-kv-read",
 		"cisco-ise-ers-device", "cisco-ise-ers-identity", "cisco-ise-openapi",
 		"cisco-ise-login", "gitlab-commits-traversal"}
 
