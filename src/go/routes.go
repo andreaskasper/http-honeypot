@@ -454,9 +454,13 @@ func handleRoutes(w http.ResponseWriter, r *http.Request, info *HoneypotRequest)
 	// /api/v<N>/(users|accounts|admin|customers|employees)/<digits>, so
 	// /api/v1/admin/7 keeps its rest-api-idor-admin tag, which is right: a
 	// numbered-admin probe is IDOR scanning, not ISE exploitation.
+	// ciscoSDWANTrap and wso2Trap go after ISE: /j_security_check,
+	// /dataservice/, /carbon/, /client-registration/ and /api/am/ are claimed
+	// nowhere above, and /api/am/ does not match the restAPITrap shape.
 	if citrixNetScalerTrap(w, r, info) || globalProtectTrap(w, r, info) ||
 		loadMasterTrap(w, r, info) || vCenterTrap(w, r, info) ||
-		ciscoFMCTrap(w, r, info) || ciscoISETrap(w, r, info) {
+		ciscoFMCTrap(w, r, info) || ciscoISETrap(w, r, info) ||
+		ciscoSDWANTrap(w, r, info) || wso2Trap(w, r, info) {
 		return
 	}
 
