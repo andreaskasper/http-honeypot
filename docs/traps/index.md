@@ -6,7 +6,7 @@ has_children: true
 
 # Attack Traps
 
-The honeypot simulates **100+ real attack surfaces** that are actively scanned on the public internet every day. Each trap responds with convincing fake data — the same response format a real vulnerable server would return — to keep scanners engaged and wasting time.
+The honeypot simulates **125+ real attack surfaces** that are actively scanned on the public internet every day. Each trap responds with convincing fake data — the same response format a real vulnerable server would return — to keep scanners engaged and wasting time.
 
 Every matched trap sets an `attack_tag` in the JSON log and webhook payload, letting you route and analyse by attack type.
 
@@ -20,6 +20,7 @@ Every matched trap sets an `attack_tag` in the JSON log and webhook payload, let
 | Edge Appliances & VPN | [Edge Appliances & VPN](vpn) | `fortinet-fgt`, `sonicwall-vpn`, `pulse-secure`, `cisco-asa-vpn`, `citrix-netscaler-*`, `panos-globalprotect-*`, `cisco-fmc-*`, `cisco-ise-*` |
 | AI Agents & MCP | [AI Agents & MCP](ai-agents) | `mcp-server-probe`, `ai-assistant-config`, `ai-assistant-credentials`, `llm-openai-models`, `ollama-tags`, `ssrf-metadata-probe` |
 | Supply Chain & AI Gateways | [Supply Chain & AI Gateways](supply-chain) | `artifactory-token-mint`, `artifactory-system`, `artifactory-scan`, `litellm-key-generate`, `litellm-key-info`, `litellm-model-info`, `litellm-scan`, `gitlab-commits-traversal`, `gitlab-api-scan`, `gitlab-login`, `gitlab-scan`, `kestra-auth-bypass`, `kestra-kv-read`, `kestra-scan` |
+| Management Planes & API Gateways | [Management Planes & API Gateways](management-planes) | `cisco-sdwan-authbypass`, `cisco-sdwan-token`, `cisco-sdwan-api`, `wso2-apim-dcr`, `wso2-apim-api`, `wso2-carbon-login` |
 | Kubernetes & Docker | [Kubernetes & Docker](kubernetes-docker) | `k8s-pods`, `k8s-secrets`, `docker-api` |
 | Cloud Metadata | [Cloud Metadata](cloud-metadata) | `aws-metadata`, `gcp-metadata`, `do-metadata` |
 | Credential & File Leaks | [Credential Leaks](credential-leaks) | `env-file`, `env-file-variant`, `git-config`, `git-credentials`, `password-store-leak`, `registry-token-leak`, `aws-credentials`, `ssh-key`, `vite-file-read`, ... |

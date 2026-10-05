@@ -30,7 +30,7 @@ The honeypot listens on port 80 and pretends to be a real vulnerable web server.
 
 | Feature | Details |
 |---|---|
-| 🎣 **100+ attack traps** | Spring, WordPress, Exchange, SharePoint, ColdFusion, Citrix NetScaler, PAN-OS GlobalProtect, Fortinet, Kemp LoadMaster, VMware vCenter, JFrog Artifactory, K8s, Docker, AWS/GCP metadata, Metabase, Langflow, LiteLLM, N-able N-central, MCP/AI-agent recon, Git leaks, web shells, and more |
+| 🎣 **125+ attack traps** | Spring, WordPress, Exchange, SharePoint, ColdFusion, Citrix NetScaler, PAN-OS GlobalProtect, Fortinet, Cisco SD-WAN, WSO2, Kemp LoadMaster, VMware vCenter, JFrog Artifactory, K8s, Docker, AWS/GCP metadata, Metabase, Langflow, LiteLLM, N-able N-central, MCP/AI-agent recon, Git leaks, web shells, and more |
 | 🍯 **Honeytokens** | IP-specific fake API keys (`hp_live_*`) embedded in credential-shaped responses; reuse fires a separate `honeytoken_used` event |
 | 🐢 **Tar-pit** | `crypto/rand` delay per request; prevents timing fingerprinting |
 | 🏷️ **attack_tag** | Every matched trap produces a machine-readable tag for webhook routing |
