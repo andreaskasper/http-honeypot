@@ -21,6 +21,7 @@ Every matched trap sets an `attack_tag` in the JSON log and webhook payload, let
 | AI Agents & MCP | [AI Agents & MCP](ai-agents) | `mcp-server-probe`, `ai-assistant-config`, `ai-assistant-credentials`, `llm-openai-models`, `ollama-tags`, `ssrf-metadata-probe` |
 | Supply Chain & AI Gateways | [Supply Chain & AI Gateways](supply-chain) | `artifactory-token-mint`, `artifactory-system`, `artifactory-scan`, `litellm-key-generate`, `litellm-key-info`, `litellm-model-info`, `litellm-scan`, `gitlab-commits-traversal`, `gitlab-api-scan`, `gitlab-login`, `gitlab-scan`, `kestra-auth-bypass`, `kestra-kv-read`, `kestra-scan` |
 | Management Planes & API Gateways | [Management Planes & API Gateways](management-planes) | `cisco-sdwan-authbypass`, `cisco-sdwan-token`, `cisco-sdwan-api`, `wso2-apim-dcr`, `wso2-apim-api`, `wso2-carbon-login` |
+| File & Print Servers | [File & Print Servers](file-print-servers) | `hfs-session-forge`, `hfs-admin-config`, `hfs-scan`, `papercut-setup-bypass`, `papercut-scan` |
 | Kubernetes & Docker | [Kubernetes & Docker](kubernetes-docker) | `k8s-pods`, `k8s-secrets`, `docker-api` |
 | Cloud Metadata | [Cloud Metadata](cloud-metadata) | `aws-metadata`, `gcp-metadata`, `do-metadata` |
 | Credential & File Leaks | [Credential Leaks](credential-leaks) | `env-file`, `env-file-variant`, `git-config`, `git-credentials`, `password-store-leak`, `registry-token-leak`, `aws-credentials`, `ssh-key`, `vite-file-read`, ... |

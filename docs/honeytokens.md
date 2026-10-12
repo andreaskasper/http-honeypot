@@ -78,11 +78,14 @@ Unless the table says otherwise, the "field" is a field in the **response body**
 | `/dataservice/client/token` | response body | Cisco SD-WAN Manager CSRF token |
 | `/client-registration/*` | `clientSecret` | WSO2 consumer secret (CVE-2026-5430 target) |
 | `/api/am/*` | `endpoint_security.production.password` | WSO2 backend endpoint password |
+| `/~/api/loginSrp1` | **`Set-Cookie: hfs_$id`** | Rejetto HFS session cookie (CVE-2026-61500 target) |
+| `/~/api/get_config` | `upload_token` | Rejetto HFS config credential read with a forged admin session |
+| `/app?service=…Setup…` | **`Set-Cookie: JSESSIONID`** | PaperCut session after the setup-wizard bypass |
 
 They all mimic the format of real credentials that automated scanners and credential-harvesting tools look for specifically.
 
 {: .note }
-> The Langflow, Metabase, N-central, Artifactory, LiteLLM, FMC, Kestra, ISE, SD-WAN and WSO2 carriers sit on endpoints an attacker reaches through an **authentication bypass**. The bypass appears to succeed, the attacker replays the token on the next request, and `detectHoneytokenInRequest` catches it — so the whole chain is observable end to end.
+> The Langflow, Metabase, N-central, Artifactory, LiteLLM, FMC, Kestra, ISE, SD-WAN, WSO2, HFS and PaperCut carriers sit on endpoints an attacker reaches through an **authentication bypass**. The bypass appears to succeed, the attacker replays the token on the next request, and `detectHoneytokenInRequest` catches it — so the whole chain is observable end to end.
 
 {: .note }
 > Cisco FMC is the first carrier that lives in a **response header** rather than a body, because that is where a real FMC puts the credential: the token endpoint answers `204 No Content` and returns nothing else. It gets two distinct tokens — one for `X-auth-access-token`, one for `X-auth-refresh-token` — so a replayed access token can be told apart from a replayed refresh token when the `honeytoken_used` event fires.
