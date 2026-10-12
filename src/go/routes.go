@@ -457,10 +457,14 @@ func handleRoutes(w http.ResponseWriter, r *http.Request, info *HoneypotRequest)
 	// ciscoSDWANTrap and wso2Trap go after ISE: /j_security_check,
 	// /dataservice/, /carbon/, /client-registration/ and /api/am/ are claimed
 	// nowhere above, and /api/am/ does not match the restAPITrap shape.
+	// hfsTrap and paperCutTrap follow: nothing above claims a path under /~/
+	// or /app, and paperCutTrap only answers /app with a Tapestry service
+	// parameter, so a bare /app still falls through untagged.
 	if citrixNetScalerTrap(w, r, info) || globalProtectTrap(w, r, info) ||
 		loadMasterTrap(w, r, info) || vCenterTrap(w, r, info) ||
 		ciscoFMCTrap(w, r, info) || ciscoISETrap(w, r, info) ||
-		ciscoSDWANTrap(w, r, info) || wso2Trap(w, r, info) {
+		ciscoSDWANTrap(w, r, info) || wso2Trap(w, r, info) ||
+		hfsTrap(w, r, info) || paperCutTrap(w, r, info) {
 		return
 	}
 

@@ -96,6 +96,16 @@ func TestRouteTags(t *testing.T) {
 		{"/carbon/admin/login.jsp", "wso2-carbon-login", "product fingerprint"},
 		{"/oauth2/token", "", "generic name, deliberately unclaimed"},
 
+		// ── Rejetto HFS, CVE-2026-61500, and PaperCut ───────────────────────────────
+		{"/~/api/loginSrp1", "hfs-session-forge", "unauthenticated login step the exploit repeats"},
+		{"/~/api/get_config", "hfs-admin-config", "what a forged admin session reads"},
+		{"/~/admin/", "hfs-scan", "product fingerprint"},
+		{"/~alice/", "", "Apache home-directory convention, not HFS"},
+		{"/app?service=direct/1/Home/SetupAdmin/$Form", "papercut-setup-bypass", "setup wizard reached unauthenticated"},
+		{"/app?service=page/SetupCompleted", "papercut-setup-bypass", ""},
+		{"/app?service=page/UserSummary", "papercut-scan", "Tapestry service, product fingerprint"},
+		{"/app", "", "bare /app is a name other products use"},
+
 		// ── Neighbours the two new traps could have shadowed ───────────────
 		{"/api/v1/flows", "langflow-scan",
 			"kestraTrap runs first but must only take the /configs suffix"},
@@ -157,11 +167,28 @@ func TestHoneytokensReachTheClient(t *testing.T) {
 		"/dataservice/client/token",              // SD-WAN CSRF token
 		"/client-registration/v0.17/register",    // WSO2 clientSecret
 		"/api/am/publisher/v4/apis",              // WSO2 endpoint password
+		"/~/api/get_config",                      // HFS upload_token
 	} {
 		t.Run(path, func(t *testing.T) {
 			_, w := route(t, http.MethodGet, path)
 			if tok := findHoneytoken(w.Body.String()); tok == "" {
 				t.Errorf("no %s token in response body", honeytokenPrefix)
+			}
+		})
+	}
+}
+
+// TestHoneytokenCookieCarriers covers the carriers that live in a Set-Cookie
+// header rather than a body: the HFS login step and the PaperCut setup wizard.
+func TestHoneytokenCookieCarriers(t *testing.T) {
+	for _, path := range []string{
+		"/~/api/loginSrp1", // HFS session cookie
+		"/app?service=direct/1/Home/SetupAdmin/$Form", // PaperCut JSESSIONID
+	} {
+		t.Run(path, func(t *testing.T) {
+			_, w := route(t, http.MethodGet, path)
+			if tok := findHoneytoken(strings.Join(w.Result().Header.Values("Set-Cookie"), ";")); tok == "" {
+				t.Errorf("no %s token in Set-Cookie", honeytokenPrefix)
 			}
 		})
 	}
@@ -191,10 +218,11 @@ func TestHoneytokensAreIPSpecific(t *testing.T) {
 // and the consequence — a scanner reported as a targeted web-app attack, or
 // the reverse — is invisible from inside the honeypot.
 func TestScanTagsPickCategory14(t *testing.T) {
-	scanners := []string{"kestra-scan", "cisco-ise-scan", "gitlab-api-scan", "cgi-scan"}
+	scanners := []string{"kestra-scan", "cisco-ise-scan", "gitlab-api-scan", "cgi-scan", "hfs-scan", "papercut-scan"}
 	targeted := []string{"cisco-sdwan-authbypass", "wso2-apim-api", "kestra-auth-bypass", "kestra-kv-read",
 		"cisco-ise-ers-device", "cisco-ise-ers-identity", "cisco-ise-openapi",
-		"cisco-ise-login", "gitlab-commits-traversal"}
+		"cisco-ise-login", "gitlab-commits-traversal", "hfs-session-forge", "hfs-admin-config",
+		"papercut-setup-bypass"}
 
 	isScanner := func(tag string) bool {
 		return strings.Contains(tag, "scan") || strings.Contains(tag, "cgi")
