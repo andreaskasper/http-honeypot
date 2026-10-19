@@ -81,6 +81,7 @@ Unless the table says otherwise, the "field" is a field in the **response body**
 | `/~/api/loginSrp1` | **`Set-Cookie: hfs_$id`** | Rejetto HFS session cookie (CVE-2026-61500 target) |
 | `/~/api/get_config` | `upload_token` | Rejetto HFS config credential read with a forged admin session |
 | `/app?service=…Setup…` | **`Set-Cookie: JSESSIONID`** | PaperCut session after the setup-wizard bypass |
+| `/download/resources/…/..::…/crowd.properties` | `application.password` | Crowd application password read through the Atlassian traversal (CVE-2026-21589) |
 
 They all mimic the format of real credentials that automated scanners and credential-harvesting tools look for specifically.
 
