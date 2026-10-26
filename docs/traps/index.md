@@ -23,6 +23,7 @@ Every matched trap sets an `attack_tag` in the JSON log and webhook payload, let
 | Management Planes & API Gateways | [Management Planes & API Gateways](management-planes) | `cisco-sdwan-authbypass`, `cisco-sdwan-token`, `cisco-sdwan-api`, `wso2-apim-dcr`, `wso2-apim-api`, `wso2-carbon-login` |
 | File & Print Servers | [File & Print Servers](file-print-servers) | `hfs-session-forge`, `hfs-admin-config`, `hfs-scan`, `papercut-setup-bypass`, `papercut-scan` |
 | Collaboration Platforms | [Collaboration Platforms](collaboration-platforms) | `atlassian-webinf-read`, `atlassian-traversal-scan` |
+| Self-hosted Apps & IoT | [Self-hosted Apps & IoT](selfhosted-iot) | `nextcloud-code-proxy-rce`, `nextcloud-code-webshell`, `nextcloud-code-scan`, `hikvision-weblanguage` |
 | Kubernetes & Docker | [Kubernetes & Docker](kubernetes-docker) | `k8s-pods`, `k8s-secrets`, `docker-api` |
 | Cloud Metadata | [Cloud Metadata](cloud-metadata) | `aws-metadata`, `gcp-metadata`, `do-metadata` |
 | Credential & File Leaks | [Credential Leaks](credential-leaks) | `env-file`, `env-file-variant`, `git-config`, `git-credentials`, `password-store-leak`, `registry-token-leak`, `aws-credentials`, `ssh-key`, `vite-file-read`, ... |
