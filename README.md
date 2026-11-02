@@ -8,7 +8,7 @@ A high-interaction HTTP honeypot written in **Go**. It simulates **125+ real att
 
 ## Features
 
-- 🎣 **125+ attack traps** — Spring Actuator, WordPress, Exchange/OWA, SharePoint, ColdFusion, Citrix NetScaler, PAN-OS GlobalProtect, Fortinet, Cisco Secure FMC, Cisco ISE, Cisco SD-WAN Manager, WSO2 API Manager, Rejetto HFS, PaperCut, Atlassian Data Center, Nextcloud Collabora CODE, Hikvision cameras, Kemp LoadMaster, VMware vCenter, JFrog Artifactory, GitLab, Kestra, Kubernetes, Docker API, AWS/GCP metadata, Git leaks, phpMyAdmin, Jenkins, Confluence, Metabase, Langflow, LiteLLM, MCP/AI-agent recon, N-able N-central, developer credential stores, web shells, and more
+- 🎣 **125+ attack traps** — Spring Actuator, WordPress, Exchange/OWA, SharePoint, ColdFusion, Citrix NetScaler, PAN-OS GlobalProtect, Fortinet, Cisco Secure FMC, Cisco ISE, Cisco SD-WAN Manager, WSO2 API Manager, Rejetto HFS, PaperCut, Atlassian Data Center, Nextcloud Collabora CODE, Hikvision cameras, Plex Media Server, Adobe Commerce/Magento, PHP2Shell, Kemp LoadMaster, VMware vCenter, JFrog Artifactory, GitLab, Kestra, Kubernetes, Docker API, AWS/GCP metadata, Git leaks, phpMyAdmin, Jenkins, Confluence, Metabase, Langflow, LiteLLM, MCP/AI-agent recon, N-able N-central, developer credential stores, web shells, and more
 - 🍯 **Honeytokens** — IP-specific fake API keys (`hp_live_*`) embedded in responses; detected and flagged with a `honeytoken_used` webhook event when an attacker reuses them
 - 🚀 **Dynamic response webhook** — Return custom content for unknown URLs via `WEBHOOK_NEW_URL` with caching
 - 🚫 **AbuseIPDB integration** — automatically reports attacking IPs with configurable per-IP cooldown
@@ -296,6 +296,9 @@ For honeytoken reuse events, `event` is `"honeytoken_used"` and `is_honeytoken_u
 | Atlassian Data Center 🍯 | `atlassian-webinf-read`, `atlassian-traversal-scan` |
 | Nextcloud Collabora CODE 🍯 | `nextcloud-code-proxy-rce`, `nextcloud-code-webshell`, `nextcloud-code-scan` |
 | Hikvision cameras / DVRs | `hikvision-weblanguage` |
+| Plex Media Server | `plex-timeline-ssrf`, `plex-scan` |
+| Adobe Commerce / Magento | `magento-polyshell-upload`, `magento-polyshell-scan` |
+| PHP2Shell (PHP core) | `php2shell-scan`, `php-multipart-upload` |
 | Kemp LoadMaster | `loadmaster-api` |
 | N-able N-central 🍯 | `nable-ncentral-auth`, `nable-ncentral-soap`, `nable-ncentral-scan` |
 | VMware vCenter 🍯 | `vmware-vcenter-sdk`, `vmware-vcenter-session`, `vmware-vcenter-websso`, `vmware-vcenter-scan` |
