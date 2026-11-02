@@ -12,6 +12,10 @@ func handleRoutes(w http.ResponseWriter, r *http.Request, info *HoneypotRequest)
 	path := r.URL.Path
 	pathLower := strings.ToLower(path)
 
+	// The PHP2Shell scanner is tagged by its User-Agent before any path is
+	// looked at; routing then carries on, so the tag names the request.
+	php2ShellScanner(r, info)
+
 	/* ── Safe / informational paths ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── */
 	switch path {
 	case "/":
@@ -467,12 +471,17 @@ func handleRoutes(w http.ResponseWriter, r *http.Request, info *HoneypotRequest)
 	// claims. hikvisionTrap is the exception to "goes last": it takes only
 	// /SDK/webLanguage and has to run before vCenterTrap, which claims the
 	// rest of /sdk/ and keeps it.
+	// magentoTrap, plexTrap and phpUploadTrap close the chain: they only take
+	// /rest/<store>/V1/guest-carts..., /pub/media/custom_options/, the Plex
+	// player-companion paths and a multipart POST to /upload.php, none of which
+	// anything above claims (vCenter's /rest/ prefix is /rest/com/vmware/).
 	if citrixNetScalerTrap(w, r, info) || globalProtectTrap(w, r, info) ||
 		loadMasterTrap(w, r, info) || hikvisionTrap(w, r, info) || vCenterTrap(w, r, info) ||
 		ciscoFMCTrap(w, r, info) || ciscoISETrap(w, r, info) ||
 		ciscoSDWANTrap(w, r, info) || wso2Trap(w, r, info) ||
 		hfsTrap(w, r, info) || paperCutTrap(w, r, info) ||
-		atlassianTrap(w, r, info) || nextcloudCodeTrap(w, r, info) {
+		atlassianTrap(w, r, info) || nextcloudCodeTrap(w, r, info) ||
+		magentoTrap(w, r, info) || plexTrap(w, r, info) || phpUploadTrap(w, r, info) {
 		return
 	}
 
