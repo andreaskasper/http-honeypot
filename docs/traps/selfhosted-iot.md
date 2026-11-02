@@ -32,6 +32,20 @@ CVE-2026-110447 (CVSS 9.2) is an unauthenticated OS command injection in `proxy.
 
 Only paths under the two app directories are claimed. A bare `/proxy.php` or any other Nextcloud app is left alone, because other software uses those names. No command is executed and no file is read; every response is fabricated.
 
+## Plex Media Server
+
+**Paths:** `/player/timeline…`, `/player/playback/`, `/player/navigation/`, `/player/application/`, `/player/mirror/`, `/system/agents`
+**Tags:** `plex-timeline-ssrf`, `plex-scan`
+
+"Plex2Shell" chains CVE-2026-96652, -96654, -96655 and -96656 against Plex Media Server up to 1.43.3.10828 (fixed in 1.43.3.10861 on 2026-08-04). The first link is an unauthenticated SSRF in the player-companion endpoint `/player/timeline`, which takes a `protocol` parameter; the later links reach the owner token and then a code-loading primitive in the transcoder settings. Full details were published on 2026-10-16, a public PoC followed within days, exploitation began against honeypots on 2026-10-17 (cryptominers), and CISA warned on 2026-10-21.
+
+| Request | Tag | Response |
+|---|---|---|
+| `/player/timeline` and below (`/poll`, `/subscribe`) | `plex-timeline-ssrf` | The empty `<Response code="200" status="OK" />` document the companion API returns, so the request looks accepted |
+| The other `/player/` companion paths and `/system/agents` | `plex-scan` | `401 Unauthorized`, reported as a scanner (category 14+21) |
+
+`/identity` and `/library/sections` are deliberately not claimed: other products use those names too, and a mislabelled AbuseIPDB report is worse than a missed one. A bare `/player/` is left alone as well. Nothing makes an outbound request; every response is fabricated.
+
 ## Hikvision `/SDK/webLanguage`
 
 **Path:** `/SDK/webLanguage` (case-insensitive, optional trailing slash)
