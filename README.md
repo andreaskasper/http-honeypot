@@ -1,6 +1,6 @@
 # 🍯 HTTP Honeypot
 
-A high-interaction HTTP honeypot written in **Go**. It simulates **125+ real attack surfaces**, tarpits every request with a cryptographically random delay, embeds **honeytokens** in fake responses to detect credential reuse, and automatically reports attackers to **AbuseIPDB**.
+A high-interaction HTTP honeypot written in **Go**. It simulates **150+ real attack surfaces**, tarpits every request with a cryptographically random delay, embeds **honeytokens** in fake responses to detect credential reuse, and automatically reports attackers to **AbuseIPDB**.
 
 📖 **Full documentation:** https://andreaskasper.github.io/http-honeypot/
 
@@ -8,7 +8,7 @@ A high-interaction HTTP honeypot written in **Go**. It simulates **125+ real att
 
 ## Features
 
-- 🎣 **125+ attack traps** — Spring Actuator, WordPress, Exchange/OWA, SharePoint, ColdFusion, Citrix NetScaler, PAN-OS GlobalProtect, Fortinet, Cisco Secure FMC, Cisco ISE, Cisco SD-WAN Manager, WSO2 API Manager, Rejetto HFS, PaperCut, Atlassian Data Center, Nextcloud Collabora CODE, Hikvision cameras, Plex Media Server, Adobe Commerce/Magento, PHP2Shell, Kemp LoadMaster, VMware vCenter, JFrog Artifactory, GitLab, Kestra, Kubernetes, Docker API, AWS/GCP metadata, Git leaks, phpMyAdmin, Jenkins, Confluence, Metabase, Langflow, LiteLLM, MCP/AI-agent recon, N-able N-central, developer credential stores, web shells, and more
+- 🎣 **150+ attack traps** — Spring Actuator, WordPress, Exchange/OWA, SharePoint, ColdFusion, Citrix NetScaler, PAN-OS GlobalProtect, Fortinet, Cisco Secure FMC, Cisco ISE, Cisco SD-WAN Manager, WSO2 API Manager, Rejetto HFS, PaperCut, Atlassian Data Center, Nextcloud Collabora CODE, Hikvision cameras, Plex Media Server, Adobe Commerce/Magento, PHP2Shell, Kemp LoadMaster, VMware vCenter, JFrog Artifactory, GitLab, Kestra, Kubernetes, Docker API, AWS/GCP metadata, Git leaks, phpMyAdmin, Jenkins, Confluence, Metabase, Langflow, LiteLLM, GPUStack, MCP/AI-agent recon, Claude Code settings leaks, N-able N-central, developer credential stores, web shells, and more
 - 🍯 **Honeytokens** — IP-specific fake API keys (`hp_live_*`) embedded in responses; detected and flagged with a `honeytoken_used` webhook event when an attacker reuses them
 - 🚀 **Dynamic response webhook** — Return custom content for unknown URLs via `WEBHOOK_NEW_URL` with caching
 - 🚫 **AbuseIPDB integration** — automatically reports attacking IPs with configurable per-IP cooldown
@@ -214,6 +214,8 @@ Tokens appear in:
 - `/app?service=…Setup…` (PaperCut) → the `JSESSIONID` **Set-Cookie header**
 - `/download/resources/…/..::…/crowd.properties` (Atlassian, CVE-2026-21589) → `application.password`
 - `/apps/richdocumentscode/shx*.php?c=…config.php` (Nextcloud Collabora CODE, CVE-2026-110447) → `dbpassword`, `secret` and `passwordsalt` in the fabricated `config.php`
+- `POST /v2/api-keys` (GPUStack, CVE-2026-102895) → `value` of the minted admin API key
+- `/.claude/settings.local.json`, `/.claude/settings.json` (Claude Code) → `GITHUB_TOKEN=…` inside an approved command in `permissions.allow`
 
 If an attacker submits a token back to **any** endpoint (as a header, cookie, query parameter, or POST body), the honeypot:
 1. Detects it in `detectHoneytokenInRequest()`
@@ -305,6 +307,7 @@ For honeytoken reuse events, `event` is `"honeytoken_used"` and `is_honeytoken_u
 | JFrog Artifactory 🍯 | `artifactory-token-mint`, `artifactory-system`, `artifactory-scan` |
 | GitLab 🍯 | `gitlab-commits-traversal`, `gitlab-api-scan`, `gitlab-login`, `gitlab-scan` |
 | Kestra 🍯 | `kestra-auth-bypass`, `kestra-kv-read`, `kestra-scan` |
+| GPUStack 🍯 | `gpustack-apikey-mint`, `gpustack-backend-rce`, `gpustack-auth-bypass`, `gpustack-scan` |
 | Kubernetes | `k8s-pods`, `k8s-secrets` |
 | Docker API | `docker-api` |
 | Grafana | `grafana` |
@@ -317,7 +320,7 @@ For honeytoken reuse events, `event` is `"honeytoken_used"` and `is_honeytoken_u
 | Cloud Metadata | `aws-metadata`, `gcp-metadata`, `do-metadata` |
 | AI / LLM tooling 🍯 | `langflow-rce`, `langflow-autologin`, `langflow-apikey`, `langflow-scan` |
 | LiteLLM proxy 🍯 | `litellm-key-generate`, `litellm-key-info`, `litellm-model-info`, `litellm-scan` |
-| AI agents / MCP 🍯 | `mcp-server-probe`, `ai-assistant-config`, `ai-assistant-credentials`, `llm-openai-models`, `ollama-tags`, `ssrf-metadata-probe` |
+| AI agents / MCP 🍯 | `mcp-server-probe`, `ai-assistant-config`, `ai-assistant-settings`, `ai-assistant-credentials`, `llm-openai-models`, `ollama-tags`, `ssrf-metadata-probe` |
 | REST API IDOR 🍯 | `rest-api-idor-users/accounts/admin/customers/employees` |
 | Credential leaks 🍯 | `env-file`, `env-file-variant`, `aws-credentials`, `htpasswd`, `ssh-key` |
 | Developer credential stores 🍯 | `git-credentials`, `password-store-leak`, `registry-token-leak` |
