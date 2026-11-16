@@ -51,6 +51,19 @@ The files AI coding assistants write into a project directory. When a developer 
 
 The honeypot returns a fake `mcpServers` block whose `GITHUB_PERSONAL_ACCESS_TOKEN` is an **IP-specific honeytoken** (`hp_live_*`), alongside a fake Postgres connection string.
 
+The two Claude Code settings files are the exception and get their own tag, below.
+
+---
+
+## Claude Code settings 🍯
+
+**Paths:** `**/.claude/settings.local.json`, `**/.claude/settings.json`  
+**Tag:** `ai-assistant-settings`
+
+Apiiro showed that Claude Code's "don't ask again" option writes the exact command it approved into `.claude/settings.local.json`. A command that carried a token on its command line leaves that token in the file, and the file gets committed along with the project. The SANS ISC [Stormcast of 2026-11-09](https://isc.sans.edu/podcastdetail/10170) reported web honeypots seeing requests for the `.claude` directory for the first time that weekend.
+
+So these two files get the shape an attacker is looking for: a `permissions.allow` list of approved commands, one of which sets `GITHUB_TOKEN` to an **IP-specific honeytoken** for a `gh release` call. The token is bounded by `=` and a space, so it is recovered both from the raw response and after JSON decoding. The files are matched at the web root and below; the rest of `/.claude/` keeps `ai-assistant-config`.
+
 ---
 
 ## AI assistant credentials 🍯
@@ -104,6 +117,7 @@ The trap only fires when a query value actually references a metadata address (`
 ## Related
 
 - [Supply Chain & AI Gateways](supply-chain) — the LiteLLM proxy management surface (`/key/*`, `/model/info`) and JFrog Artifactory
+- [AI Infrastructure](ai-infrastructure) — the GPUStack cluster manager and its loopback auth bypass
 - [Langflow](other-services#langflow--ai-agent-platforms-) — the AI agent platform traps, including the `auto_login` bypass
 - [Cloud Metadata](cloud-metadata) — the direct `/latest/meta-data` and `/computeMetadata/v1` traps
 - [Honeytokens](../honeytokens) — how the `hp_live_*` tokens work and what happens on reuse

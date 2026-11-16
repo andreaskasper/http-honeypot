@@ -83,11 +83,13 @@ Unless the table says otherwise, the "field" is a field in the **response body**
 | `/app?service=…Setup…` | **`Set-Cookie: JSESSIONID`** | PaperCut session after the setup-wizard bypass |
 | `/download/resources/…/..::…/crowd.properties` | `application.password` | Crowd application password read through the Atlassian traversal (CVE-2026-21589) |
 | `/apps/richdocumentscode/shx*.php?c=…config.php` | `dbpassword`, `secret`, `passwordsalt` | Nextcloud `config.php` read through the dropped webshell (CVE-2026-110447) |
+| `POST /v2/api-keys` | `value` | GPUStack admin API key minted through the loopback auth bypass (CVE-2026-102895) |
+| `/.claude/settings.local.json`, `/.claude/settings.json` | `permissions.allow[]` (`GITHUB_TOKEN=…` in an approved command) | GitHub token left in Claude Code's approved-command list |
 
 They all mimic the format of real credentials that automated scanners and credential-harvesting tools look for specifically.
 
 {: .note }
-> The Langflow, Metabase, N-central, Artifactory, LiteLLM, FMC, Kestra, ISE, SD-WAN, WSO2, HFS and PaperCut carriers sit on endpoints an attacker reaches through an **authentication bypass**. The bypass appears to succeed, the attacker replays the token on the next request, and `detectHoneytokenInRequest` catches it — so the whole chain is observable end to end.
+> The Langflow, Metabase, N-central, Artifactory, LiteLLM, FMC, Kestra, ISE, SD-WAN, WSO2, HFS, PaperCut and GPUStack carriers sit on endpoints an attacker reaches through an **authentication bypass**. The bypass appears to succeed, the attacker replays the token on the next request, and `detectHoneytokenInRequest` catches it — so the whole chain is observable end to end.
 
 {: .note }
 > Cisco FMC is the first carrier that lives in a **response header** rather than a body, because that is where a real FMC puts the credential: the token endpoint answers `204 No Content` and returns nothing else. It gets two distinct tokens — one for `X-auth-access-token`, one for `X-auth-refresh-token` — so a replayed access token can be told apart from a replayed refresh token when the `honeytoken_used` event fires.
