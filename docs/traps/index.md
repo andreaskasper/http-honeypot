@@ -26,6 +26,7 @@ Every matched trap sets an `attack_tag` in the JSON log and webhook payload, let
 | Self-hosted Apps & IoT | [Self-hosted Apps & IoT](selfhosted-iot) | `nextcloud-code-proxy-rce`, `nextcloud-code-webshell`, `nextcloud-code-scan`, `hikvision-weblanguage`, `plex-timeline-ssrf`, `plex-scan` |
 | PHP Platforms | [PHP Platforms](php-platforms) | `magento-polyshell-upload`, `magento-polyshell-scan`, `php2shell-scan`, `php-multipart-upload` |
 | AI Infrastructure | [AI Infrastructure](ai-infrastructure) | `gpustack-apikey-mint`, `gpustack-backend-rce`, `gpustack-auth-bypass`, `gpustack-scan` |
+| Publishing Platforms | [Publishing Platforms](publishing-platforms) | `wp-upgrade-setup-config`, `wp-upgrade-install`, `wp-upgrade-scan`, `roller-xmlrpc-rce`, `roller-scan` |
 | Kubernetes & Docker | [Kubernetes & Docker](kubernetes-docker) | `k8s-pods`, `k8s-secrets`, `docker-api` |
 | Cloud Metadata | [Cloud Metadata](cloud-metadata) | `aws-metadata`, `gcp-metadata`, `do-metadata` |
 | Credential & File Leaks | [Credential Leaks](credential-leaks) | `env-file`, `env-file-variant`, `git-config`, `git-credentials`, `password-store-leak`, `registry-token-leak`, `aws-credentials`, `ssh-key`, `vite-file-read`, ... |

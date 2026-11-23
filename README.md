@@ -8,7 +8,7 @@ A high-interaction HTTP honeypot written in **Go**. It simulates **150+ real att
 
 ## Features
 
-- 🎣 **150+ attack traps** — Spring Actuator, WordPress, Exchange/OWA, SharePoint, ColdFusion, Citrix NetScaler, PAN-OS GlobalProtect, Fortinet, Cisco Secure FMC, Cisco ISE, Cisco SD-WAN Manager, WSO2 API Manager, Rejetto HFS, PaperCut, Atlassian Data Center, Nextcloud Collabora CODE, Hikvision cameras, Plex Media Server, Adobe Commerce/Magento, PHP2Shell, Kemp LoadMaster, VMware vCenter, JFrog Artifactory, GitLab, Kestra, Kubernetes, Docker API, AWS/GCP metadata, Git leaks, phpMyAdmin, Jenkins, Confluence, Metabase, Langflow, LiteLLM, GPUStack, MCP/AI-agent recon, Claude Code settings leaks, N-able N-central, developer credential stores, web shells, and more
+- 🎣 **150+ attack traps** — Spring Actuator, WordPress (incl. the core upgrade-window race), Exchange/OWA, SharePoint, ColdFusion, Citrix NetScaler, PAN-OS GlobalProtect, Fortinet, Cisco Secure FMC, Cisco ISE, Cisco SD-WAN Manager, WSO2 API Manager, Rejetto HFS, PaperCut, Atlassian Data Center, Nextcloud Collabora CODE, Hikvision cameras, Plex Media Server, Adobe Commerce/Magento, Apache Roller, PHP2Shell, Kemp LoadMaster, VMware vCenter, JFrog Artifactory, GitLab, Kestra, Kubernetes, Docker API, AWS/GCP metadata, Git leaks, phpMyAdmin, Jenkins, Confluence, Metabase, Langflow, LiteLLM, GPUStack, MCP/AI-agent recon, Claude Code settings leaks, N-able N-central, developer credential stores, web shells, and more
 - 🍯 **Honeytokens** — IP-specific fake API keys (`hp_live_*`) embedded in responses; detected and flagged with a `honeytoken_used` webhook event when an attacker reuses them
 - 🚀 **Dynamic response webhook** — Return custom content for unknown URLs via `WEBHOOK_NEW_URL` with caching
 - 🚫 **AbuseIPDB integration** — automatically reports attacking IPs with configurable per-IP cooldown
@@ -277,6 +277,7 @@ For honeytoken reuse events, `event` is `"honeytoken_used"` and `is_honeytoken_u
 |---|---|
 | Spring Boot Actuator | `spring-actuator-health/env/beans/heapdump/shutdown` |
 | WordPress | `wp-login`, `wp-admin`, `xmlrpc`, `wp-wlwmanifest`, `wordpress-scan` |
+| WordPress core upgrade window | `wp-upgrade-setup-config`, `wp-upgrade-install`, `wp-upgrade-scan` |
 | Joomla | `joomla-admin` |
 | phpMyAdmin | `phpmyadmin-index`, `phpmyadmin-setup` |
 | Apache Tomcat | `tomcat-manager` |
@@ -308,6 +309,7 @@ For honeytoken reuse events, `event` is `"honeytoken_used"` and `is_honeytoken_u
 | GitLab 🍯 | `gitlab-commits-traversal`, `gitlab-api-scan`, `gitlab-login`, `gitlab-scan` |
 | Kestra 🍯 | `kestra-auth-bypass`, `kestra-kv-read`, `kestra-scan` |
 | GPUStack 🍯 | `gpustack-apikey-mint`, `gpustack-backend-rce`, `gpustack-auth-bypass`, `gpustack-scan` |
+| Apache Roller | `roller-xmlrpc-rce`, `roller-scan` |
 | Kubernetes | `k8s-pods`, `k8s-secrets` |
 | Docker API | `docker-api` |
 | Grafana | `grafana` |
