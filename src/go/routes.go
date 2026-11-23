@@ -16,7 +16,7 @@ func handleRoutes(w http.ResponseWriter, r *http.Request, info *HoneypotRequest)
 	// looked at; routing then carries on, so the tag names the request.
 	php2ShellScanner(r, info)
 
-	/* ── Safe / informational paths ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── */
+	/* ── Safe / informational paths ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── */
 	switch path {
 	case "/":
 		serveFile(w, "assets/nginx_default.html")
@@ -35,7 +35,7 @@ func handleRoutes(w http.ResponseWriter, r *http.Request, info *HoneypotRequest)
 		return
 	}
 
-	/* ── Spring Boot Actuators ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────── */
+	/* ── Spring Boot Actuators ──────────────────────────────────────────────────────────────────────────────────────────────────────────────── */
 	switch path {
 	case "/actuator/health":
 		markAttack(info, "spring-actuator-health")
@@ -70,7 +70,7 @@ func handleRoutes(w http.ResponseWriter, r *http.Request, info *HoneypotRequest)
 		return
 	}
 
-	/* ── WordPress ─────────────────────────────────────────────────────────────────────────────────────────── */
+	/* ── WordPress ─────────────────────────────────────────────────────────────────────────────────────── */
 	switch path {
 	case "/wp-login.php":
 		markAttack(info, "wp-login")
@@ -94,7 +94,7 @@ func handleRoutes(w http.ResponseWriter, r *http.Request, info *HoneypotRequest)
 		return
 	}
 
-	/* ── Joomla ─────────────────────────────────────────────────────────────────────────────────────────── */
+	/* ── Joomla ─────────────────────────────────────────────────────────────────────────────────────── */
 	if path == "/administrator/" || path == "/administrator" {
 		markAttack(info, "joomla-admin")
 		w.Header().Set("Content-Type", "text/html")
@@ -102,7 +102,7 @@ func handleRoutes(w http.ResponseWriter, r *http.Request, info *HoneypotRequest)
 		return
 	}
 
-	/* ── Apache Tomcat Manager ──────────────────────────────────────────────────────────────────────────────────────────────────── */
+	/* ── Apache Tomcat Manager ──────────────────────────────────────────────────────────────────────────────────────────────── */
 	if path == "/manager/html" || path == "/host-manager/html" {
 		markAttack(info, "tomcat-manager")
 		w.Header().Set("WWW-Authenticate", `Basic realm="Tomcat Manager Application"`)
@@ -111,7 +111,7 @@ func handleRoutes(w http.ResponseWriter, r *http.Request, info *HoneypotRequest)
 		return
 	}
 
-	/* ── Apache Solr ────────────────────────────────────────────────────────────────────────────────────────────── */
+	/* ── Apache Solr ──────────────────────────────────────────────────────────────────────────────────────────── */
 	if strings.HasPrefix(path, "/solr") {
 		markAttack(info, "apache-solr")
 		w.Header().Set("Content-Type", "application/json")
@@ -119,7 +119,7 @@ func handleRoutes(w http.ResponseWriter, r *http.Request, info *HoneypotRequest)
 		return
 	}
 
-	/* ── Jenkins ──────────────────────────────────────────────────────────────────────────────────────────── */
+	/* ── Jenkins ──────────────────────────────────────────────────────────────────────────────────────── */
 	switch path {
 	case "/script":
 		markAttack(info, "jenkins-script")
@@ -133,7 +133,7 @@ func handleRoutes(w http.ResponseWriter, r *http.Request, info *HoneypotRequest)
 		return
 	}
 
-	/* ── H2 / JBoss Console ───────────────────────────────────────────────────────────────────────────────────────────── */
+	/* ── H2 / JBoss Console ─────────────────────────────────────────────────────────────────────────────────────────── */
 	if path == "/console" || path == "/console/" || path == "/h2-console" {
 		markAttack(info, "h2-console")
 		w.Header().Set("Content-Type", "text/html")
@@ -141,7 +141,7 @@ func handleRoutes(w http.ResponseWriter, r *http.Request, info *HoneypotRequest)
 		return
 	}
 
-	/* ── Kubernetes API ─────────────────────────────────────────────────────────────────────────────────────────────── */
+	/* ── Kubernetes API ─────────────────────────────────────────────────────────────────────────────────────────── */
 	switch path {
 	case "/api/v1/pods", "/api/v1/namespaces/default/pods":
 		markAttack(info, "k8s-pods")
@@ -155,7 +155,7 @@ func handleRoutes(w http.ResponseWriter, r *http.Request, info *HoneypotRequest)
 		return
 	}
 
-	/* ── Docker API ────────────────────────────────────────────────────────────────────────────────────────────── */
+	/* ── Docker API ──────────────────────────────────────────────────────────────────────────────────────── */
 	if strings.HasPrefix(path, "/v1.") && strings.Contains(path, "/containers") {
 		markAttack(info, "docker-api")
 		w.Header().Set("Content-Type", "application/json")
@@ -163,7 +163,7 @@ func handleRoutes(w http.ResponseWriter, r *http.Request, info *HoneypotRequest)
 		return
 	}
 
-	/* ── Microsoft Exchange ───────────────────────────────────────────────────────────────────────────────────────────────── */
+	/* ── Microsoft Exchange ─────────────────────────────────────────────────────────────────────────────────────────── */
 	switch path {
 	case "/owa/", "/owa":
 		w.Header().Set("Location", "/owa/auth/logon.aspx")
@@ -190,7 +190,7 @@ func handleRoutes(w http.ResponseWriter, r *http.Request, info *HoneypotRequest)
 		return
 	}
 
-	/* ── Fortinet / VPN Appliances ─────────────────────────────────────────────────────────────────────────────────────────────────── */
+	/* ── Fortinet / VPN Appliances ─────────────────────────────────────────────────────────────────────────────────────────────── */
 	switch {
 	case strings.HasPrefix(path, "/remote/fgt_lang"):
 		markAttack(info, "fortinet-fgt")
@@ -214,7 +214,7 @@ func handleRoutes(w http.ResponseWriter, r *http.Request, info *HoneypotRequest)
 		return
 	}
 
-	/* ── Grafana ─────────────────────────────────────────────────────────────────────────────────────────── */
+	/* ── Grafana ─────────────────────────────────────────────────────────────────────────────────────── */
 	if strings.HasPrefix(path, "/grafana") || path == "/api/snapshots" || path == "/api/ds/query" {
 		markAttack(info, "grafana")
 		w.Header().Set("Content-Type", "application/json")
@@ -223,7 +223,7 @@ func handleRoutes(w http.ResponseWriter, r *http.Request, info *HoneypotRequest)
 		return
 	}
 
-	/* ── Confluence ────────────────────────────────────────────────────────────────────────────────────────── */
+	/* ── Confluence ──────────────────────────────────────────────────────────────────────────────────── */
 	if strings.Contains(pathLower, "/pages/createpage") || strings.Contains(pathLower, "/rest/tinymce") {
 		markAttack(info, "confluence-rce")
 		w.Header().Set("Content-Type", "application/json")
@@ -231,7 +231,7 @@ func handleRoutes(w http.ResponseWriter, r *http.Request, info *HoneypotRequest)
 		return
 	}
 
-	/* ── Liferay (CVE-2020-7961) ─────────────────────────────────────────────────────────────────────────────────────────────────── */
+	/* ── Liferay (CVE-2020-7961) ─────────────────────────────────────────────────────────────────────────────────────────────── */
 	if strings.HasPrefix(path, "/api/jsonws") {
 		markAttack(info, "liferay-rce")
 		w.Header().Set("Content-Type", "application/json")
@@ -239,7 +239,7 @@ func handleRoutes(w http.ResponseWriter, r *http.Request, info *HoneypotRequest)
 		return
 	}
 
-	/* ── phpMyAdmin ────────────────────────────────────────────────────────────────────────────────────────── */
+	/* ── phpMyAdmin ──────────────────────────────────────────────────────────────────────────────────── */
 	pmaIndex, _ := regexp.MatchString(`/(pma|pmd|[_-]*php[_-]*myadmin|myadmin)/(index\.php)?$`, pathLower)
 	pmaSetup, _ := regexp.MatchString(`/(pma|pmd|[_-]*php[_-]*myadmin|myadmin)/scripts/setup\.php$`, pathLower)
 	switch {
@@ -253,7 +253,7 @@ func handleRoutes(w http.ResponseWriter, r *http.Request, info *HoneypotRequest)
 		return
 	}
 
-	/* ── phpunit RCE (CVE-2017-9841) ────────────────────────────────────────────────────────────────────────────────────────────────── */
+	/* ── phpunit RCE (CVE-2017-9841) ──────────────────────────────────────────────────────────────────────────────────────────────── */
 	if strings.Contains(pathLower, "phpunit") && strings.Contains(pathLower, "eval-stdin") {
 		markAttack(info, "phpunit-rce")
 		w.Header().Set("Content-Type", "text/plain")
@@ -261,7 +261,7 @@ func handleRoutes(w http.ResponseWriter, r *http.Request, info *HoneypotRequest)
 		return
 	}
 
-	/* ── AWS / GCP / DigitalOcean Metadata ─────────────────────────────────────────────────────────────────────────────────────────────────────────── */
+	/* ── AWS / GCP / DigitalOcean Metadata ───────────────────────────────────────────────────────────────────────────────────────────────────── */
 	switch {
 	case strings.HasPrefix(path, "/latest/meta-data"):
 		markAttack(info, "aws-metadata")
@@ -295,12 +295,12 @@ func handleRoutes(w http.ResponseWriter, r *http.Request, info *HoneypotRequest)
 		return
 	}
 
-	/* ── Dynamic REST API IDOR trap ─────────────────────────────────────────────────────────────────────────────────────────────────── */
+	/* ── Dynamic REST API IDOR trap ─────────────────────────────────────────────────────────────────────────────────────────────── */
 	if restAPITrap(w, r, info) {
 		return
 	}
 
-	/* ── Old/legacy admin paths ─────────────────────────────────────────────────────────────────────────────────────────── */
+	/* ── Old/legacy admin paths ─────────────────────────────────────────────────────────────────────────────────────── */
 	switch path {
 	case "/admin/config.php", "/admin//config.php":
 		markAttack(info, "admin-config")
@@ -322,7 +322,7 @@ func handleRoutes(w http.ResponseWriter, r *http.Request, info *HoneypotRequest)
 		return
 	}
 
-	/* ── Suffix-based traps ────────────────────────────────────────────────────────────────────────────────────────────── */
+	/* ── Suffix-based traps ──────────────────────────────────────────────────────────────────────────────────────── */
 	switch {
 	case strings.HasSuffix(path, "/.env") || path == "/.env":
 		markAttack(info, "env-file")
@@ -479,6 +479,10 @@ func handleRoutes(w http.ResponseWriter, r *http.Request, info *HoneypotRequest)
 	// /v2/inference-backends, /v2/users/me, and other /v2/ or /auth/ requests
 	// only when they carry X-GPUStack-Real-IP; a bare /v2/ (Docker registry
 	// probes) and /auth/login stay unclaimed.
+	// wpUpgradeTrap and rollerTrap close the chain: nothing above claims
+	// /wp-content/upgrade/, /roller-services/ or /roller-ui/ (with or without
+	// the /roller context). wpUpgradeTrap has to stay ahead of the prefix
+	// block below, which tags the rest of /wp-content as wordpress-scan.
 	if citrixNetScalerTrap(w, r, info) || globalProtectTrap(w, r, info) ||
 		loadMasterTrap(w, r, info) || hikvisionTrap(w, r, info) || vCenterTrap(w, r, info) ||
 		ciscoFMCTrap(w, r, info) || ciscoISETrap(w, r, info) ||
@@ -486,11 +490,11 @@ func handleRoutes(w http.ResponseWriter, r *http.Request, info *HoneypotRequest)
 		hfsTrap(w, r, info) || paperCutTrap(w, r, info) ||
 		atlassianTrap(w, r, info) || nextcloudCodeTrap(w, r, info) ||
 		magentoTrap(w, r, info) || plexTrap(w, r, info) || phpUploadTrap(w, r, info) ||
-		gpustackTrap(w, r, info) {
+		gpustackTrap(w, r, info) || wpUpgradeTrap(w, r, info) || rollerTrap(w, r, info) {
 		return
 	}
 
-	/* ── AI-agent recon / N-able N-central ───────────────────────────────────────────────────────────────────────────────────────────────────── */
+	/* ── AI-agent recon / N-able N-central ───────────────────────────────────────────────────────────────────────────────────────────────── */
 	// Same reason for the placement: aiAgentTrap claims /credentials.json,
 	// but .aws/credentials is matched in the suffix block above and keeps its
 	// own aws-credentials tag. claudeSettingsTrap runs first so the two
@@ -500,7 +504,7 @@ func handleRoutes(w http.ResponseWriter, r *http.Request, info *HoneypotRequest)
 		return
 	}
 
-	/* ── Prefix-based traps ───────────────────────────────────────────────────────────────────────────────────────────── */
+	/* ── Prefix-based traps ───────────────────────────────────────────────────────────────────────────────────────── */
 	switch {
 	case strings.HasPrefix(pathLower, "/wp-content") || strings.HasPrefix(pathLower, "/wp-json"):
 		markAttack(info, "wordpress-scan")
@@ -513,9 +517,9 @@ func handleRoutes(w http.ResponseWriter, r *http.Request, info *HoneypotRequest)
 		return
 	}
 
-	/* ════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+	/* ════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
 	   WEBHOOK_NEW_URL - Call for unknown/new URLs
-	══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════ */
+	══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════ */
 	if !info.isAttack && getenv("WEBHOOK_NEW_URL", "") != "" {
 		webhookResp := sendNewURLWebhook(*info)
 		if webhookResp != nil {
@@ -543,14 +547,14 @@ func handleRoutes(w http.ResponseWriter, r *http.Request, info *HoneypotRequest)
 		}
 	}
 
-	/* ── Default fallback ──────────────────────────────────────────────────────────────────────────────────────── */
+	/* ── Default fallback ──────────────────────────────────────────────────────────────────────────────────── */
 	if strings.EqualFold(getenv("DEFAULT_REDIRECT", "false"), "true") {
 		w.Header().Set("Location", "/")
 		w.WriteHeader(301)
 		return
 	}
 
-	/* ── Default 404 ──────────────────────────────────────────────────────────────────────────────────────── */
+	/* ── Default 404 ──────────────────────────────────────────────────────────────────────────────────── */
 	atomic.AddInt64(&counterRequests404, 1)
 	http.Error(w, "File not found.", 404)
 }
